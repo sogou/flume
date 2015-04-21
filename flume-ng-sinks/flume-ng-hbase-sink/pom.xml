@@ -118,11 +118,13 @@
         </property>
       </activation>
       <dependencies>
+        <!--
         <dependency>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-test</artifactId>
           <scope>test</scope>
         </dependency>
+        -->
         <!-- required because the hadoop-core pom is missing these deps
             and MiniDFSCluster pulls in the webhdfs classes -->
         <dependency>
