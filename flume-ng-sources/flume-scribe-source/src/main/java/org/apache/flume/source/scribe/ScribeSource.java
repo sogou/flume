@@ -68,6 +68,7 @@ public class ScribeSource extends AbstractSource implements
   private int workers;
   private int maxReadBufferBytes;
 
+  private String customSourceCounterType = "SourceCounter";
   private SourceCounter sourceCounter;
 
   @Override
@@ -84,7 +85,12 @@ public class ScribeSource extends AbstractSource implements
     }
 
     if (sourceCounter == null) {
-      sourceCounter = new SourceCounter(getName());
+      customSourceCounterType = context.getString("customSourceCounterType", "SourceCounter");
+      if(customSourceCounterType.equals("TimedSourceCounter")) {
+        sourceCounter = new org.apache.flume.instrumentation.sogou.TimedSourceCounter(getName());
+      } else {
+        sourceCounter = new SourceCounter(getName());
+      }
     }
   }
 
@@ -172,6 +178,10 @@ public class ScribeSource extends AbstractSource implements
           }
 
           sourceCounter.addToEventAcceptedCount(list.size());
+
+          if(customSourceCounterType.equals("TimedSourceCounter")) {
+            ((TimedSourceCounter) sourceCounter).addToEventAcceptedCountInFiveMinMap(events);
+          }
           return ResultCode.OK;
         } catch (Exception e) {
           LOG.warn("Scribe source handling failure", e);
