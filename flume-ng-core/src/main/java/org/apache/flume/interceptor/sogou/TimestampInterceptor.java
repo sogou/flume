@@ -39,104 +39,104 @@ import static org.apache.flume.interceptor.sogou.TimestampInterceptor.Constants.
  */
 public class TimestampInterceptor implements Interceptor {
 
-	private final boolean preserveExisting;
-	private final Pattern regex;
-	private final Charset charset;
+  private final boolean preserveExisting;
+  private final Pattern regex;
+  private final Charset charset;
 
-	/**
-	 * Only {@link TimestampInterceptor.Builder} can build me
-	 */
-	private TimestampInterceptor(boolean preserveExisting, Pattern regex, Charset charset) {
-		this.regex = regex;
-		this.preserveExisting = preserveExisting;
-		this.charset = charset;
-	}
+  /**
+   * Only {@link TimestampInterceptor.Builder} can build me
+   */
+  private TimestampInterceptor(boolean preserveExisting, Pattern regex, Charset charset) {
+    this.regex = regex;
+    this.preserveExisting = preserveExisting;
+    this.charset = charset;
+  }
 
-	@Override
-	public void initialize() {
-		// no-op
-	}
+  @Override
+  public void initialize() {
+    // no-op
+  }
 
-	/**
-	 * Modifies events in-place.
-	 */
-	@Override
-	public Event intercept(Event event) {
-		Map<String, String> headers = event.getHeaders();
-		if (preserveExisting && headers.containsKey(TIMESTAMP)) {
-			// we must preserve the existing timestamp
-		} else {
-			String origBody = new String(event.getBody(), charset);
-			Matcher m = regex.matcher(origBody);
-			if (m.find()) {
-				String timestamp = m.group(1);
-				String message = m.group(2);
-				event.setBody(message.getBytes(charset));
-				headers.put(TIMESTAMP, timestamp + "000");
-			} else {
-				long now = System.currentTimeMillis();
-				headers.put(TIMESTAMP, Long.toString(now));
-			}
-		}
-		return event;
-	}
+  /**
+   * Modifies events in-place.
+   */
+  @Override
+  public Event intercept(Event event) {
+    Map<String, String> headers = event.getHeaders();
+    if (preserveExisting && headers.containsKey(TIMESTAMP)) {
+      // we must preserve the existing timestamp
+    } else {
+      String origBody = new String(event.getBody(), charset);
+      Matcher m = regex.matcher(origBody);
+      if (m.find()) {
+        String timestamp = m.group(1);
+        String message = m.group(2);
+        event.setBody(message.getBytes(charset));
+        headers.put(TIMESTAMP, timestamp + "000");
+      } else {
+        long now = System.currentTimeMillis();
+        headers.put(TIMESTAMP, Long.toString(now));
+      }
+    }
+    return event;
+  }
 
-	/**
-	 * Delegates to {@link #intercept(Event)} in a loop.
-	 *
-	 * @param events
-	 * @return
-	 */
-	@Override
-	public List<Event> intercept(List<Event> events) {
-		for (Event event : events) {
-			intercept(event);
-		}
-		return events;
-	}
+  /**
+   * Delegates to {@link #intercept(Event)} in a loop.
+   *
+   * @param events
+   * @return
+   */
+  @Override
+  public List<Event> intercept(List<Event> events) {
+    for (Event event : events) {
+      intercept(event);
+    }
+    return events;
+  }
 
-	@Override
-	public void close() {
-		// no-op
-	}
+  @Override
+  public void close() {
+    // no-op
+  }
 
-	/**
-	 * Builder which builds new instances of the TimestampInterceptor.
-	 */
-	public static class Builder implements Interceptor.Builder {
+  /**
+   * Builder which builds new instances of the TimestampInterceptor.
+   */
+  public static class Builder implements Interceptor.Builder {
 
-		private boolean preserveExisting = PRESERVE_DFLT;
-		private Pattern regex;
-		private Charset charset = Charsets.UTF_8;
+    private boolean preserveExisting = PRESERVE_DFLT;
+    private Pattern regex;
+    private Charset charset = Charsets.UTF_8;
 
-		@Override
-		public Interceptor build() {
-			return new TimestampInterceptor(preserveExisting, regex, charset);
-		}
+    @Override
+    public Interceptor build() {
+      return new TimestampInterceptor(preserveExisting, regex, charset);
+    }
 
-		@Override
-		public void configure(Context context) {
-			String regexString = context.getString(REGEX, DEFAULT_REGEX);
-			regex = Pattern.compile(regexString);
+    @Override
+    public void configure(Context context) {
+      String regexString = context.getString(REGEX, DEFAULT_REGEX);
+      regex = Pattern.compile(regexString);
 
-			preserveExisting = context.getBoolean(PRESERVE, PRESERVE_DFLT);
+      preserveExisting = context.getBoolean(PRESERVE, PRESERVE_DFLT);
 
-			if (context.containsKey(CHARSET_KEY)) {
-				// May throw IllegalArgumentException for unsupported charsets.
-				charset = Charset.forName(context.getString(CHARSET_KEY));
-			}
-		}
+      if (context.containsKey(CHARSET_KEY)) {
+        // May throw IllegalArgumentException for unsupported charsets.
+        charset = Charset.forName(context.getString(CHARSET_KEY));
+      }
+    }
 
-	}
+  }
 
-	public static class Constants {
-		public static final String TIMESTAMP = "timestamp";
-		public static final String PRESERVE = "preserveExisting";
-		public static final boolean PRESERVE_DFLT = false;
+  public static class Constants {
+    public static final String TIMESTAMP = "timestamp";
+    public static final String PRESERVE = "preserveExisting";
+    public static final boolean PRESERVE_DFLT = false;
 
-		public static final String REGEX = "regex";
-		public static final String DEFAULT_REGEX = "^(\\d{10}):(.*)$";
+    public static final String REGEX = "regex";
+    public static final String DEFAULT_REGEX = "^(\\d{10}):(.*)$";
 
-		public static final String CHARSET_KEY = "charset";
-	}
+    public static final String CHARSET_KEY = "charset";
+  }
 }
