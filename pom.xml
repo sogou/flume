@@ -752,6 +752,7 @@ limitations under the License.
                   <exclude>**/target/**</exclude>
                   <exclude>**/derby.log</exclude>
                   <exclude>**/metastore_db/</exclude>
+                  <exclude>**/sogou/**</exclude>
                 </excludes>
               </configuration>
             </execution>
