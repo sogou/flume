@@ -128,6 +128,7 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
 
   private long callTimeout;
   private Context context;
+  private String customSinkCounterType = "SinkCounter";
   private SinkCounter sinkCounter;
 
   private volatile int idleTimeout;
@@ -297,7 +298,12 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
     }
 
     if (sinkCounter == null) {
-      sinkCounter = new SinkCounter(getName());
+      customSinkCounterType = context.getString("customSinkCounterType", "SinkCounter");
+      if(customSinkCounterType.equals("TimedSinkCounter")) {
+        sinkCounter = new org.apache.flume.instrumentation.sogou.TimedSinkCounter(getName());
+      } else {
+        sinkCounter = new SinkCounter(getName());
+      }
     }
   }
 
@@ -369,6 +375,8 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
     List<BucketWriter> writers = Lists.newArrayList();
     transaction.begin();
     try {
+      // For statistics
+      List<Event> events = new ArrayList<Event>();
       int txnEventCount = 0;
       for (txnEventCount = 0; txnEventCount < batchSize; txnEventCount++) {
         Event event = channel.take();
@@ -416,6 +424,7 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
         // Write the data to HDFS
         try {
           bucketWriter.append(event);
+          events.add(event);
         } catch (BucketClosedException ex) {
           LOG.info("Bucket was closed while trying to append, " +
             "reinitializing bucket and writing event.");
@@ -426,6 +435,7 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
             sfWriters.put(lookupPath, bucketWriter);
           }
           bucketWriter.append(event);
+          events.add(event);
         }
       }
 
@@ -448,6 +458,10 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
         return Status.BACKOFF;
       } else {
         sinkCounter.addToEventDrainSuccessCount(txnEventCount);
+        if(customSinkCounterType.equals("TimedSinkCounter")) {
+          ((org.apache.flume.instrumentation.sogou.TimedSinkCounter)sinkCounter)
+                  .addToEventDrainSuccessCountInFiveMinMap(events);
+        }
         return Status.READY;
       }
     } catch (IOException eIO) {
