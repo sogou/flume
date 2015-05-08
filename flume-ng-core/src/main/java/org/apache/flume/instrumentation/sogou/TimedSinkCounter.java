@@ -25,11 +25,11 @@ public class TimedSinkCounter extends SinkCounter implements TimedSinkCounterMBe
   }
 
   public void addToEventDrainSuccessCountInFiveMinMap(List<Event> events) {
-    TimedUtils.updateFiveMinMap(events, eventDrainSuccessCountInFiveMinMap);
+    TimedUtils.updateCategoryFiveMinMap(events, eventDrainSuccessCountInFiveMinMap);
   }
 
   @Override
   public String getEventDrainSuccessCountInFiveMinJson() {
-    return TimedUtils.convertFiveMinMapToJson(eventDrainSuccessCountInFiveMinMap);
+    return TimedUtils.convertCategoryFiveMinMapToJson(eventDrainSuccessCountInFiveMinMap);
   }
 }

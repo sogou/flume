@@ -19,12 +19,6 @@
 
 package org.apache.flume.source.scribe;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.flume.Context;
 import org.apache.flume.Event;
 import org.apache.flume.EventDrivenSource;
@@ -36,13 +30,17 @@ import org.apache.flume.source.scribe.Scribe.Iface;
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.server.THsHaServer;
-import org.apache.thrift.server.TNonblockingServer;
 import org.apache.thrift.server.TServer;
 import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TNonblockingServerSocket;
 import org.apache.thrift.transport.TNonblockingServerTransport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Flume should adopt the Scribe entry {@code LogEntry} from existing
@@ -157,6 +155,9 @@ public class ScribeSource extends AbstractSource implements
     public ResultCode Log(List<LogEntry> list) throws TException {
       if (list != null) {
         sourceCounter.addToEventReceivedCount(list.size());
+        if(customSourceCounterType.equals("TimedSourceCounter")) {
+          ((org.apache.flume.instrumentation.sogou.TimedSourceCounter) sourceCounter).addToEventReceivedCountInFiveMinMap(list.size());
+        }
 
         try {
           List<Event> events = new ArrayList<Event>(list.size());
@@ -178,9 +179,9 @@ public class ScribeSource extends AbstractSource implements
           }
 
           sourceCounter.addToEventAcceptedCount(list.size());
-
           if(customSourceCounterType.equals("TimedSourceCounter")) {
-            ((org.apache.flume.instrumentation.sogou.TimedSourceCounter) sourceCounter).addToEventAcceptedCountInFiveMinMap(events);
+            ((org.apache.flume.instrumentation.sogou.TimedSourceCounter) sourceCounter).addToEventAcceptedCountInFiveMinMap(list.size());
+            ((org.apache.flume.instrumentation.sogou.TimedSourceCounter) sourceCounter).addToCategoryEventAcceptedCountInFiveMinMap(events);
           }
           return ResultCode.OK;
         } catch (Exception e) {

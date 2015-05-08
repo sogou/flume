@@ -22,20 +22,41 @@ public class TimedUtils {
   private static final String INVALID_TIMESTAMP = "invalid_timestamp";
 
   private static final java.lang.reflect.Type FIVE_MIN_MAP_TYPE =
-          new TypeToken<Map<String, Map<String, TimestampCount>>>() {
-          }.getType();
+      new TypeToken<Map<String, TimestampCount>>() {
+      }.getType();
+  private static final java.lang.reflect.Type CATEGORY_FIVE_MIN_MAP_TYPE =
+      new TypeToken<Map<String, Map<String, TimestampCount>>>() {
+      }.getType();
   private static Gson gson = new Gson();
 
-  private static String convertTimestampStrToFiveMinStr(String timestampStr) {
-    long timestamp = (long) Math.floor(Long.parseLong(timestampStr) / 300000) * 300000;
-    return fiveMinSDF.format(new Date(timestamp));
+  public static String convertTimestampToFiveMinStr(long timestamp) {
+    long fiveMinTimestamp = (long) Math.floor(timestamp / 300000) * 300000;
+    return fiveMinSDF.format(new Date(fiveMinTimestamp));
   }
 
-  public static String convertFiveMinMapToJson(Map<String, Map<String, TimestampCount>> fiveMinMap) {
+  public static String convertTimestampStrToFiveMinStr(String timestampStr) {
+    return convertTimestampToFiveMinStr(Long.parseLong(timestampStr));
+  }
+
+  public static String convertFiveMinMapToJson(Map<String, TimestampCount> fiveMinMap) {
     return gson.toJson(fiveMinMap, FIVE_MIN_MAP_TYPE);
   }
 
-  public static void updateFiveMinMap(List<Event> events, Map<String, Map<String, TimestampCount>> fiveMinMap) {
+  public static String convertCategoryFiveMinMapToJson(Map<String, Map<String, TimestampCount>> fiveMinMap) {
+    return gson.toJson(fiveMinMap, CATEGORY_FIVE_MIN_MAP_TYPE);
+  }
+
+  public static void updateFiveMinMap(long delta, Map<String, TimestampCount> fiveMinMap) {
+    long timestamp = System.currentTimeMillis();
+    String fiveMin = TimedUtils.convertTimestampToFiveMinStr(timestamp);
+    synchronized (fiveMinMap) {
+      if (!fiveMinMap.containsKey(fiveMin))
+        fiveMinMap.put(fiveMin, new TimestampCount());
+      fiveMinMap.get(fiveMin).addToCountAndTimestamp(delta, timestamp);
+    }
+  }
+
+  public static void updateCategoryFiveMinMap(List<Event> events, Map<String, Map<String, TimestampCount>> fiveMinMap) {
     if (events == null && events.size() == 0) {
       return;
     }
@@ -45,7 +66,7 @@ public class TimedUtils {
       Map<String, String> headers = event.getHeaders();
 
       String category = headers.containsKey(EVENT_CATEGORY_KEY) ?
-              headers.get(EVENT_CATEGORY_KEY) : NO_CATEGORY;
+          headers.get(EVENT_CATEGORY_KEY) : NO_CATEGORY;
       String fiveMin = NO_TIMESTAMP;
       if (headers.containsKey(EVENT_TIMESTAMP_KEY)) {
         String timestampStr = headers.get(EVENT_TIMESTAMP_KEY);
@@ -84,7 +105,7 @@ public class TimedUtils {
     }
   }
 
-  private static class FiveMinLinkedHashMap<String, TimestampCount> extends LinkedHashMap<String, TimestampCount> {
+  public static class FiveMinLinkedHashMap<String, TimestampCount> extends LinkedHashMap<String, TimestampCount> {
     private static final int DEFAULT_MAX_SIZE = 500;
     private int maxSize = DEFAULT_MAX_SIZE;
 
