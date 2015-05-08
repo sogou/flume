@@ -25,26 +25,32 @@ import kafka.javaapi.consumer.ConsumerConnector;
 import kafka.javaapi.producer.Producer;
 import kafka.producer.KeyedMessage;
 import kafka.producer.ProducerConfig;
-import org.apache.avro.io.*;
+import org.apache.avro.io.BinaryDecoder;
+import org.apache.avro.io.BinaryEncoder;
+import org.apache.avro.io.DecoderFactory;
+import org.apache.avro.io.EncoderFactory;
 import org.apache.avro.specific.SpecificDatumReader;
 import org.apache.avro.specific.SpecificDatumWriter;
-import org.apache.flume.*;
+import org.apache.flume.ChannelException;
+import org.apache.flume.Context;
+import org.apache.flume.Event;
+import org.apache.flume.FlumeException;
 import org.apache.flume.channel.BasicChannelSemantics;
 import org.apache.flume.channel.BasicTransactionSemantics;
 import org.apache.flume.conf.ConfigurationException;
-
-import static org.apache.flume.channel.kafka.KafkaChannelConfiguration.*;
-
 import org.apache.flume.event.EventBuilder;
 import org.apache.flume.instrumentation.kafka.KafkaChannelCounter;
 import org.apache.flume.source.avro.AvroFlumeEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.apache.flume.channel.kafka.KafkaChannelConfiguration.*;
 
 public class KafkaChannel extends BasicChannelSemantics {
 
@@ -65,6 +71,7 @@ public class KafkaChannel extends BasicChannelSemantics {
   private final List<ConsumerAndIterator> consumers =
     Collections.synchronizedList(new LinkedList<ConsumerAndIterator>());
 
+  private String customKafkaChannelCounterType = "KafkaChannelCounter";
   private KafkaChannelCounter counter;
 
   /* Each ConsumerConnector commit will commit all partitions owned by it. To
@@ -200,7 +207,12 @@ public class KafkaChannel extends BasicChannelSemantics {
     }
 
     if (counter == null) {
-      counter = new KafkaChannelCounter(getName());
+      customKafkaChannelCounterType = ctx.getString("customKafkaChannelCounterType", "KafkaChannelCounter");
+      if(customKafkaChannelCounterType.equals("TimedKafkaChannelCounter")) {
+        counter = new org.apache.flume.instrumentation.sogou.TimedKafkaChannelCounter(getName());
+      } else {
+        counter = new KafkaChannelCounter(getName());
+      }
     }
 
   }
@@ -358,6 +370,10 @@ public class KafkaChannel extends BasicChannelSemantics {
           long endTime = System.nanoTime();
           counter.addToKafkaEventSendTimer((endTime-startTime)/(1000*1000));
           counter.addToEventPutSuccessCount(Long.valueOf(messages.size()));
+          if(customKafkaChannelCounterType.equals("TimedKafkaChannelCounter")) {
+            ((org.apache.flume.instrumentation.sogou.TimedKafkaChannelCounter) counter)
+                .addToEventPutSuccessCountInFiveMinMap(Long.valueOf(messages.size()));
+          }
           serializedEvents.get().clear();
         } catch (Exception ex) {
           LOGGER.warn("Sending events to Kafka failed", ex);
@@ -372,6 +388,10 @@ public class KafkaChannel extends BasicChannelSemantics {
           counter.addToKafkaCommitTimer((endTime-startTime)/(1000*1000));
          }
         counter.addToEventTakeSuccessCount(Long.valueOf(events.get().size()));
+        if(customKafkaChannelCounterType.equals("TimedKafkaChannelCounter")) {
+          ((org.apache.flume.instrumentation.sogou.TimedKafkaChannelCounter) counter)
+              .addToEventTakeSuccessCountInFiveMinMap(Long.valueOf(events.get().size()));
+        }
         events.get().clear();
       }
     }
@@ -385,6 +405,10 @@ public class KafkaChannel extends BasicChannelSemantics {
         serializedEvents.get().clear();
       } else {
         counter.addToRollbackCounter(Long.valueOf(events.get().size()));
+        if(customKafkaChannelCounterType.equals("TimedKafkaChannelCounter")) {
+          ((org.apache.flume.instrumentation.sogou.TimedKafkaChannelCounter) counter)
+              .addToRollbackCountInFiveMinMap(Long.valueOf(events.get().size()));
+        }
         consumerAndIter.get().failedEvents.addAll(events.get());
         events.get().clear();
       }
