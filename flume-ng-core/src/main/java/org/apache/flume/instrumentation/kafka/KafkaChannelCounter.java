@@ -47,6 +47,10 @@ public class KafkaChannelCounter extends ChannelCounter
     super(name,ATTRIBUTES);
   }
 
+  public KafkaChannelCounter(String name, String[] attributes) {
+    super(name, (String[]) ArrayUtils.addAll(attributes, ATTRIBUTES));
+  }
+
   public long addToKafkaEventGetTimer(long delta) {
     return addAndGet(TIMER_KAFKA_EVENT_GET, delta);
   }
