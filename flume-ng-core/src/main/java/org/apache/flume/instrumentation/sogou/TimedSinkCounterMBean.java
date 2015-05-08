@@ -7,4 +7,5 @@ import org.apache.flume.instrumentation.SinkCounterMBean;
  */
 public interface TimedSinkCounterMBean extends SinkCounterMBean {
   String getEventDrainSuccessCountInFiveMinJson();
+  String getCategoryEventDrainSuccessCountInFiveMinJson();
 }
