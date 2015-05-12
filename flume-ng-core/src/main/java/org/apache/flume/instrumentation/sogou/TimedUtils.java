@@ -12,7 +12,12 @@ import java.util.*;
  */
 public class TimedUtils {
   private static final String FIVE_MIN_TIME_FOTMAT = "yyyyMMddHHmm";
-  private static SimpleDateFormat fiveMinSDF = new SimpleDateFormat(FIVE_MIN_TIME_FOTMAT);
+  private static ThreadLocal<SimpleDateFormat> fiveMinSDF = new ThreadLocal<SimpleDateFormat>() {
+    @Override
+    protected SimpleDateFormat initialValue() {
+      return new SimpleDateFormat(FIVE_MIN_TIME_FOTMAT);
+    }
+  };
 
   private static final String EVENT_CATEGORY_KEY = "category";
   private static final String EVENT_TIMESTAMP_KEY = "timestamp";
@@ -29,23 +34,13 @@ public class TimedUtils {
       }.getType();
   private static Gson gson = new Gson();
 
-  @Deprecated
   public static String convertTimestampToFiveMinStr(long timestamp) {
     long fiveMinTimestamp = (long) Math.floor(timestamp / 300000) * 300000;
-    return fiveMinSDF.format(new Date(fiveMinTimestamp));
+    return fiveMinSDF.get().format(new Date(fiveMinTimestamp));
   }
 
-  @Deprecated
   public static String convertTimestampStrToFiveMinStr(String timestampStr) {
     return convertTimestampToFiveMinStr(Long.parseLong(timestampStr));
-  }
-
-  public static long convertTimestampToFiveMinTimestamp(long timestamp) {
-    return (long) Math.floor(timestamp / 300000) * 300000;
-  }
-
-  public static long convertTimestampStrToFiveMinTimestamp(String timestampStr) {
-    return convertTimestampToFiveMinTimestamp(Long.parseLong(timestampStr));
   }
 
   public static String convertFiveMinMapToJson(Map<String, TimestampCount> fiveMinMap) {
@@ -58,7 +53,7 @@ public class TimedUtils {
 
   public static void updateFiveMinMap(long delta, Map<String, TimestampCount> fiveMinMap) {
     long timestamp = System.currentTimeMillis();
-    String fiveMin = TimedUtils.convertTimestampToFiveMinTimestamp(timestamp) + "";
+    String fiveMin = TimedUtils.convertTimestampToFiveMinStr(timestamp);
     synchronized (fiveMinMap) {
       if (!fiveMinMap.containsKey(fiveMin))
         fiveMinMap.put(fiveMin, new TimestampCount());
@@ -81,7 +76,7 @@ public class TimedUtils {
       if (headers.containsKey(EVENT_TIMESTAMP_KEY)) {
         String timestampStr = headers.get(EVENT_TIMESTAMP_KEY);
         try {
-          fiveMin = TimedUtils.convertTimestampStrToFiveMinTimestamp(timestampStr) + "";
+          fiveMin = TimedUtils.convertTimestampStrToFiveMinStr(timestampStr);
         } catch (Exception e) {
           fiveMin = INVALID_TIMESTAMP;
         }
