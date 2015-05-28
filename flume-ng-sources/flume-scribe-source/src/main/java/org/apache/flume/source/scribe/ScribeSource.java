@@ -170,7 +170,7 @@ public class ScribeSource extends AbstractSource implements
               headers.put(SCRIBE_CATEGORY, category);
             }
 
-            Event event = EventBuilder.withBody(entry.getMessage().getBytes(), headers);
+            Event event = EventBuilder.withBody(entry.getMessage(), headers);
             events.add(event);
           }
 

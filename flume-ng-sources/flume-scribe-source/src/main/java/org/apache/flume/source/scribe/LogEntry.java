@@ -24,20 +24,9 @@
 package org.apache.flume.source.scribe;
 
 import org.apache.commons.lang.builder.HashCodeBuilder;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.EnumMap;
-import java.util.Set;
-import java.util.HashSet;
-import java.util.EnumSet;
-import java.util.Collections;
-import java.util.BitSet;
+
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.*;
 
 public class LogEntry implements org.apache.thrift.TBase<LogEntry, LogEntry._Fields>, java.io.Serializable, Cloneable {
   private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("LogEntry");
@@ -46,7 +35,7 @@ public class LogEntry implements org.apache.thrift.TBase<LogEntry, LogEntry._Fie
   private static final org.apache.thrift.protocol.TField MESSAGE_FIELD_DESC = new org.apache.thrift.protocol.TField("message", org.apache.thrift.protocol.TType.STRING, (short)2);
 
   public String category; // required
-  public String message; // required
+  public byte[] message; // required
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
@@ -127,7 +116,7 @@ public class LogEntry implements org.apache.thrift.TBase<LogEntry, LogEntry._Fie
 
   public LogEntry(
     String category,
-    String message)
+    byte[] message)
   {
     this();
     this.category = category;
@@ -180,11 +169,11 @@ public class LogEntry implements org.apache.thrift.TBase<LogEntry, LogEntry._Fie
     }
   }
 
-  public String getMessage() {
+  public byte[] getMessage() {
     return this.message;
   }
 
-  public LogEntry setMessage(String message) {
+  public LogEntry setMessage(byte[] message) {
     this.message = message;
     return this;
   }
@@ -218,7 +207,7 @@ public class LogEntry implements org.apache.thrift.TBase<LogEntry, LogEntry._Fie
       if (value == null) {
         unsetMessage();
       } else {
-        setMessage((String)value);
+        setMessage((byte[])value);
       }
       break;
 
@@ -357,8 +346,10 @@ public class LogEntry implements org.apache.thrift.TBase<LogEntry, LogEntry._Fie
           break;
         case 2: // MESSAGE
           if (field.type == org.apache.thrift.protocol.TType.STRING) {
-            this.message = iprot.readString();
-          } else { 
+            ByteBuffer buff = iprot.readBinary();
+            this.message = new byte[buff.remaining()];
+            buff.get(this.message);
+          } else {
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, field.type);
           }
           break;
@@ -384,7 +375,7 @@ public class LogEntry implements org.apache.thrift.TBase<LogEntry, LogEntry._Fie
     }
     if (this.message != null) {
       oprot.writeFieldBegin(MESSAGE_FIELD_DESC);
-      oprot.writeString(this.message);
+      oprot.writeBinary(ByteBuffer.wrap(this.message));
       oprot.writeFieldEnd();
     }
     oprot.writeFieldStop();
