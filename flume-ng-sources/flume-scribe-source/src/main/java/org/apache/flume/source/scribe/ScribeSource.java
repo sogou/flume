@@ -158,7 +158,6 @@ public class ScribeSource extends AbstractSource implements
         if(customSourceCounterType.equals("TimedSourceCounter")) {
           ((org.apache.flume.instrumentation.sogou.TimedSourceCounter) sourceCounter).addToEventReceivedCountInFiveMinMap(list.size());
         }
-        LOG.debug("ReceivedCount: " + list.size());
 
         try {
           List<Event> events = new ArrayList<Event>(list.size());
@@ -184,7 +183,6 @@ public class ScribeSource extends AbstractSource implements
             ((org.apache.flume.instrumentation.sogou.TimedSourceCounter) sourceCounter).addToEventAcceptedCountInFiveMinMap(list.size());
             ((org.apache.flume.instrumentation.sogou.TimedSourceCounter) sourceCounter).addToCategoryEventAcceptedCountInFiveMinMap(events);
           }
-          LOG.debug("AcceptedCount:" + events.size());
           return ResultCode.OK;
         } catch (Exception e) {
           LOG.warn("Scribe source handling failure", e);
