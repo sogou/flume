@@ -21,7 +21,7 @@ limitations under the License.
   <parent>
     <artifactId>flume-parent</artifactId>
     <groupId>org.apache.flume</groupId>
-    <version>1.6.0-SNAPSHOT</version>
+    <version>1.6.0</version>
   </parent>
 
   <artifactId>flume-ng-auth</artifactId>
@@ -65,6 +65,7 @@ limitations under the License.
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>${hadoop.common.artifact.id}</artifactId>
+      <optional>true</optional>
     </dependency>
 
     <dependency>
