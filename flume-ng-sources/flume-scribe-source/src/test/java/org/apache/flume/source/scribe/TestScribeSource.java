@@ -87,7 +87,7 @@ public class TestScribeSource {
     TProtocol protocol = new TBinaryProtocol(transport);
     Scribe.Client client = new Scribe.Client(protocol);
     transport.open();
-    LogEntry logEntry = new LogEntry("INFO", "Sending info msg to scribe source");
+    LogEntry logEntry = new LogEntry("INFO", "Sending info msg to scribe source".getBytes());
     List<LogEntry> logEntries = new ArrayList<LogEntry>(1);
     logEntries.add(logEntry);
     client.Log(logEntries);
@@ -112,7 +112,7 @@ public class TestScribeSource {
 
     List<LogEntry> logEntries = new ArrayList<LogEntry>(10);
     for (int i = 0; i < 10; i++) {
-      LogEntry logEntry = new LogEntry("INFO", String.format("Sending info msg# %d to scribe source", i));
+      LogEntry logEntry = new LogEntry("INFO", String.format("Sending info msg# %d to scribe source", i).getBytes());
       logEntries.add(logEntry);
     }
 
