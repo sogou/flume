@@ -87,6 +87,7 @@ public class HTTPSource extends AbstractSource implements
   private volatile Server srv;
   private volatile String host;
   private HTTPSourceHandler handler;
+  private String customSourceCounterType = "SourceCounter";
   private SourceCounter sourceCounter;
 
   // SSL configuration variable
@@ -160,7 +161,12 @@ public class HTTPSource extends AbstractSource implements
       Throwables.propagate(ex);
     }
     if (sourceCounter == null) {
-      sourceCounter = new SourceCounter(getName());
+      customSourceCounterType = context.getString("customSourceCounterType", "SourceCounter");
+      if(customSourceCounterType.equals("TimedSourceCounter")) {
+        sourceCounter = new org.apache.flume.instrumentation.sogou.TimedSourceCounter(getName());
+      } else {
+        sourceCounter = new SourceCounter(getName());
+      }
     }
   }
 
@@ -253,6 +259,10 @@ public class HTTPSource extends AbstractSource implements
       }
       sourceCounter.incrementAppendBatchReceivedCount();
       sourceCounter.addToEventReceivedCount(events.size());
+      if(customSourceCounterType.equals("TimedSourceCounter")) {
+        ((org.apache.flume.instrumentation.sogou.TimedSourceCounter) sourceCounter).
+            addToEventReceivedCountInFiveMinMap(events.size());
+      }
       try {
         getChannelProcessor().processEventBatch(events);
       } catch (ChannelException ex) {
@@ -275,6 +285,10 @@ public class HTTPSource extends AbstractSource implements
       response.flushBuffer();
       sourceCounter.incrementAppendBatchAcceptedCount();
       sourceCounter.addToEventAcceptedCount(events.size());
+      if(customSourceCounterType.equals("TimedSourceCounter")) {
+        ((org.apache.flume.instrumentation.sogou.TimedSourceCounter) sourceCounter).
+            addToEventAcceptedCountInFiveMinMap(events.size());
+      }
     }
 
     @Override
