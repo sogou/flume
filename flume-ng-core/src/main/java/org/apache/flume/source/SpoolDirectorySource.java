@@ -241,6 +241,7 @@ Configurable, EventDrivenSource {
           sourceCounter.incrementAppendBatchReceivedCount();
           if(customSourceCounterType.equals("TimedSourceCounter")) {
             ((org.apache.flume.instrumentation.sogou.TimedSourceCounter) sourceCounter).addToEventReceivedCountInFiveMinMap(events.size());
+            ((org.apache.flume.instrumentation.sogou.TimedSourceCounter) sourceCounter).addToCategoryEventReceivedCountInFiveMinMap(events, timedSourceCounterCategoryKey);
           }
 
           try {

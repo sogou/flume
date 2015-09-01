@@ -15,6 +15,8 @@ public class TimedSourceCounter extends SourceCounter implements TimedSourceCoun
       new TimedUtils.FiveMinLinkedHashMap<String, TimedUtils.TimestampCount>();
   private Map<String, TimedUtils.TimestampCount> eventAcceptedCountInFiveMinMap =
       new TimedUtils.FiveMinLinkedHashMap<String, TimedUtils.TimestampCount>();
+  private Map<String, Map<String, TimedUtils.TimestampCount>> categoryEventReceivedCountInFiveMinMap =
+      new HashMap<String, Map<String, TimedUtils.TimestampCount>>();
   private Map<String, Map<String, TimedUtils.TimestampCount>> categoryEventAcceptedCountInFiveMinMap =
       new HashMap<String, Map<String, TimedUtils.TimestampCount>>();
 
@@ -51,6 +53,19 @@ public class TimedSourceCounter extends SourceCounter implements TimedSourceCoun
   @Override
   public String getEventAcceptedCountInFiveMinJson() {
     return TimedUtils.convertFiveMinMapToJson(eventAcceptedCountInFiveMinMap);
+  }
+
+  public void addToCategoryEventReceivedCountInFiveMinMap(List<Event> events, String categoryKey) {
+    TimedUtils.updateCategoryFiveMinMap(events, categoryEventReceivedCountInFiveMinMap, categoryKey);
+  }
+
+  public void addToCategoryEventReceivedCountInFiveMinMap(List<Event> events) {
+    TimedUtils.updateCategoryFiveMinMap(events, categoryEventReceivedCountInFiveMinMap);
+  }
+
+  @Override
+  public String getCategoryEventReceivedCountInFiveMinJson() {
+    return TimedUtils.convertCategoryFiveMinMapToJson(categoryEventReceivedCountInFiveMinMap);
   }
 
   public void addToCategoryEventAcceptedCountInFiveMinMap(List<Event> events, String categoryKey) {

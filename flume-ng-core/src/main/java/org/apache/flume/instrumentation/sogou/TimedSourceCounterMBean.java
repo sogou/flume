@@ -8,5 +8,6 @@ import org.apache.flume.instrumentation.SourceCounterMBean;
 public interface TimedSourceCounterMBean extends SourceCounterMBean {
   String getEventReceivedCountInFiveMinJson();
   String getEventAcceptedCountInFiveMinJson();
+  String getCategoryEventReceivedCountInFiveMinJson();
   String getCategoryEventAcceptedCountInFiveMinJson();
 }
