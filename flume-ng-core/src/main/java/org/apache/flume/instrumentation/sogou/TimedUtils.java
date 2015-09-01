@@ -62,6 +62,10 @@ public class TimedUtils {
   }
 
   public static void updateCategoryFiveMinMap(List<Event> events, Map<String, Map<String, TimestampCount>> fiveMinMap) {
+    updateCategoryFiveMinMap(events, fiveMinMap, EVENT_CATEGORY_KEY);
+  }
+
+  public static void updateCategoryFiveMinMap(List<Event> events, Map<String, Map<String, TimestampCount>> fiveMinMap, String categoryKey) {
     if (events == null && events.size() == 0) {
       return;
     }
@@ -70,8 +74,8 @@ public class TimedUtils {
     for (Event event : events) {
       Map<String, String> headers = event.getHeaders();
 
-      String category = headers.containsKey(EVENT_CATEGORY_KEY) ?
-          headers.get(EVENT_CATEGORY_KEY) : NO_CATEGORY;
+      String category = headers.containsKey(categoryKey) ?
+          headers.get(categoryKey) : NO_CATEGORY;
       String fiveMin = NO_TIMESTAMP;
       if (headers.containsKey(EVENT_TIMESTAMP_KEY)) {
         String timestampStr = headers.get(EVENT_TIMESTAMP_KEY);

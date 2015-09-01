@@ -115,6 +115,7 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
 
   private long callTimeout;
   private Context context;
+  private String timedSinkCounterCategoryKey = "category";
   private String customSinkCounterType = "SinkCounter";
   private SinkCounter sinkCounter;
 
@@ -288,6 +289,7 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
       customSinkCounterType = context.getString("customSinkCounterType", "SinkCounter");
       if(customSinkCounterType.equals("TimedSinkCounter")) {
         sinkCounter = new org.apache.flume.instrumentation.sogou.TimedSinkCounter(getName());
+        timedSinkCounterCategoryKey = context.getString("timedSinkCounterCategoryKey", "category");
       } else {
         sinkCounter = new SinkCounter(getName());
       }
@@ -449,7 +451,7 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
           ((org.apache.flume.instrumentation.sogou.TimedSinkCounter)sinkCounter)
               .addToEventDrainSuccessCountInFiveMinMap(txnEventCount);
           ((org.apache.flume.instrumentation.sogou.TimedSinkCounter)sinkCounter)
-              .addToCategoryEventDrainSuccessCountInFiveMinMap(events);
+              .addToCategoryEventDrainSuccessCountInFiveMinMap(events, timedSinkCounterCategoryKey);
         }
         return Status.READY;
       }

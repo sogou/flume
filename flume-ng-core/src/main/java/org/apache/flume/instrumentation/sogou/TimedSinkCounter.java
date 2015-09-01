@@ -39,6 +39,10 @@ public class TimedSinkCounter extends SinkCounter implements TimedSinkCounterMBe
     return TimedUtils.convertFiveMinMapToJson(eventDrainSuccessCountInFiveMinMap);
   }
 
+  public void addToCategoryEventDrainSuccessCountInFiveMinMap(List<Event> events, String categoryKey) {
+    TimedUtils.updateCategoryFiveMinMap(events, categoryEventDrainSuccessCountInFiveMinMap, categoryKey);
+  }
+
   public void addToCategoryEventDrainSuccessCountInFiveMinMap(List<Event> events) {
     TimedUtils.updateCategoryFiveMinMap(events, categoryEventDrainSuccessCountInFiveMinMap);
   }

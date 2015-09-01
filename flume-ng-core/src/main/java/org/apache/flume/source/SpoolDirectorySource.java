@@ -65,6 +65,8 @@ Configurable, EventDrivenSource {
   private DecodeErrorPolicy decodeErrorPolicy;
   private volatile boolean hasFatalError = false;
 
+  private String customSourceCounterType = "SourceCounter";
+  private String timedSourceCounterCategoryKey = "category";
   private SourceCounter sourceCounter;
   ReliableSpoolingFileEventReader reader;
   private ScheduledExecutorService executor;
@@ -179,7 +181,13 @@ Configurable, EventDrivenSource {
 
     maxBackoff = context.getInteger(MAX_BACKOFF, DEFAULT_MAX_BACKOFF);
     if (sourceCounter == null) {
-      sourceCounter = new SourceCounter(getName());
+      customSourceCounterType = context.getString("customSourceCounterType", "SourceCounter");
+      if(customSourceCounterType.equals("TimedSourceCounter")) {
+        sourceCounter = new org.apache.flume.instrumentation.sogou.TimedSourceCounter(getName());
+        timedSourceCounterCategoryKey = context.getString("timedSourceCounterCategoryKey", "category");
+      } else {
+        sourceCounter = new SourceCounter(getName());
+      }
     }
   }
 
@@ -231,6 +239,9 @@ Configurable, EventDrivenSource {
           }
           sourceCounter.addToEventReceivedCount(events.size());
           sourceCounter.incrementAppendBatchReceivedCount();
+          if(customSourceCounterType.equals("TimedSourceCounter")) {
+            ((org.apache.flume.instrumentation.sogou.TimedSourceCounter) sourceCounter).addToEventReceivedCountInFiveMinMap(events.size());
+          }
 
           try {
             getChannelProcessor().processEventBatch(events);
@@ -251,6 +262,10 @@ Configurable, EventDrivenSource {
           backoffInterval = 250;
           sourceCounter.addToEventAcceptedCount(events.size());
           sourceCounter.incrementAppendBatchAcceptedCount();
+          if(customSourceCounterType.equals("TimedSourceCounter")) {
+            ((org.apache.flume.instrumentation.sogou.TimedSourceCounter) sourceCounter).addToEventAcceptedCountInFiveMinMap(events.size());
+            ((org.apache.flume.instrumentation.sogou.TimedSourceCounter) sourceCounter).addToCategoryEventAcceptedCountInFiveMinMap(events, timedSourceCounterCategoryKey);
+          }
         }
       } catch (Throwable t) {
         logger.error("FATAL: " + SpoolDirectorySource.this.toString() + ": " +

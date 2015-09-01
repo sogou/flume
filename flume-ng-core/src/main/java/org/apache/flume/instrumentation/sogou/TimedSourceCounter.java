@@ -53,6 +53,10 @@ public class TimedSourceCounter extends SourceCounter implements TimedSourceCoun
     return TimedUtils.convertFiveMinMapToJson(eventAcceptedCountInFiveMinMap);
   }
 
+  public void addToCategoryEventAcceptedCountInFiveMinMap(List<Event> events, String categoryKey) {
+    TimedUtils.updateCategoryFiveMinMap(events, categoryEventAcceptedCountInFiveMinMap, categoryKey);
+  }
+
   public void addToCategoryEventAcceptedCountInFiveMinMap(List<Event> events) {
     TimedUtils.updateCategoryFiveMinMap(events, categoryEventAcceptedCountInFiveMinMap);
   }
