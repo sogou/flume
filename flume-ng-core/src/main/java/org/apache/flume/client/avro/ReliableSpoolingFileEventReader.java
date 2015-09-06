@@ -94,8 +94,8 @@ public class ReliableSpoolingFileEventReader implements ReliableEventReader {
   private final String deletePolicy;
   private final Charset inputCharset;
   private final DecodeErrorPolicy decodeErrorPolicy;
-  private final ConsumeOrder consumeOrder;    
-  
+  private final ConsumeOrder consumeOrder;
+
   private Optional<FileInfo> currentFile = Optional.absent();
   /** Always contains the last file from which lines have been read. **/
   private Optional<FileInfo> lastFileRead = Optional.absent();
@@ -114,7 +114,7 @@ public class ReliableSpoolingFileEventReader implements ReliableEventReader {
       boolean annotateBaseName, String baseNameHeader,
       String deserializerType, Context deserializerContext,
       String deletePolicy, String inputCharset,
-      DecodeErrorPolicy decodeErrorPolicy, 
+      DecodeErrorPolicy decodeErrorPolicy,
       ConsumeOrder consumeOrder) throws IOException {
 
     // Sanity checks
@@ -175,7 +175,7 @@ public class ReliableSpoolingFileEventReader implements ReliableEventReader {
     this.deletePolicy = deletePolicy;
     this.inputCharset = Charset.forName(inputCharset);
     this.decodeErrorPolicy = Preconditions.checkNotNull(decodeErrorPolicy);
-    this.consumeOrder = Preconditions.checkNotNull(consumeOrder);    
+    this.consumeOrder = Preconditions.checkNotNull(consumeOrder);
 
     File trackerDirectory = new File(trackerDirPath);
 
@@ -371,14 +371,19 @@ public class ReliableSpoolingFileEventReader implements ReliableEventReader {
         throw new IllegalStateException(message);
       }
 
-    // Dest file exists and not on windows
-    } else if (dest.exists()) {
-      String message = "File name has been re-used with different" +
-          " files. Spooling assumptions violated for " + dest;
-      throw new IllegalStateException(message);
-
-    // Destination file does not already exist. We are good to go!
     } else {
+      // Dest file exists and not on windows
+      if (dest.exists()) {
+        String message = "File name has been re-used with different" +
+            " files. Spooling assumptions violated for " + dest;
+        logger.error(message);
+        long timestamp = System.currentTimeMillis();
+        // change dest to "path.timestamp.completedSuffix"
+        dest = new File(fileToRoll.getPath() + "." + timestamp + completedSuffix);
+        dest.delete();
+      }
+
+      // Destination file does not already exist. We are good to go!
       boolean renamed = fileToRoll.renameTo(dest);
       if (renamed) {
         logger.debug("Successfully rolled file {} to {}", fileToRoll, dest);
