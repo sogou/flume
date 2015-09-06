@@ -84,9 +84,11 @@ public class SpoolDirectorySourceConfigurationConstants {
       DecodeErrorPolicy.FAIL.name();
 
   public static final String MAX_BACKOFF = "maxBackoff";
+  public static final String POLL_DELAY_MS = "pollDelayMs";
 
   public static final Integer DEFAULT_MAX_BACKOFF = 4000;
-  
+  public static final Integer DEFAULT_POLL_DELAY_MS = 500;
+
   /** Consume order. */
   public enum ConsumeOrder {
     OLDEST, YOUNGEST, RANDOM

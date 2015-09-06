@@ -45,9 +45,6 @@ Configurable, EventDrivenSource {
   private static final Logger logger = LoggerFactory
       .getLogger(SpoolDirectorySource.class);
 
-  // Delay used when polling for new files
-  private static final int POLL_DELAY_MS = 500;
-
   /* Config options */
   private String completedSuffix;
   private String spoolDirectory;
@@ -73,6 +70,7 @@ Configurable, EventDrivenSource {
   private boolean backoff = true;
   private boolean hitChannelException = false;
   private int maxBackoff;
+  private int pollDelayMs;
   private ConsumeOrder consumeOrder;
 
   @Override
@@ -107,7 +105,7 @@ Configurable, EventDrivenSource {
 
     Runnable runner = new SpoolDirectoryRunnable(reader, sourceCounter);
     executor.scheduleWithFixedDelay(
-        runner, 0, POLL_DELAY_MS, TimeUnit.MILLISECONDS);
+        runner, 0, pollDelayMs, TimeUnit.MILLISECONDS);
 
     super.start();
     logger.debug("SpoolDirectorySource source started");
@@ -180,6 +178,7 @@ Configurable, EventDrivenSource {
     }
 
     maxBackoff = context.getInteger(MAX_BACKOFF, DEFAULT_MAX_BACKOFF);
+    pollDelayMs = context.getInteger(POLL_DELAY_MS, DEFAULT_POLL_DELAY_MS);
     if (sourceCounter == null) {
       customSourceCounterType = context.getString("customSourceCounterType", "SourceCounter");
       if(customSourceCounterType.equals("TimedSourceCounter")) {
