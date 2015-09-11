@@ -319,11 +319,13 @@ public class ReliableSpoolingFileEventReader implements ReliableEventReader {
     // Verify that spooling assumptions hold
     if (fileToRoll.lastModified() != currentFile.get().getLastModified()) {
       String message = "File has been modified since being read: " + fileToRoll;
-      throw new IllegalStateException(message);
+      logger.error(message);
+      // throw new IllegalStateException(message);
     }
     if (fileToRoll.length() != currentFile.get().getLength()) {
       String message = "File has changed size since being read: " + fileToRoll;
-      throw new IllegalStateException(message);
+      logger.error(message);
+      // throw new IllegalStateException(message);
     }
 
     if (deletePolicy.equalsIgnoreCase(DeletePolicy.NEVER.name())) {
