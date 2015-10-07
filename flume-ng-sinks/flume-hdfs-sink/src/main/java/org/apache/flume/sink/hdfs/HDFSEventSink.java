@@ -64,6 +64,7 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
   private static final String defaultInUseSuffix = ".tmp";
   private static final long defaultBatchSize = 100;
   private static final String defaultFileType = HDFSWriterFactory.SequenceFileType;
+  private static final boolean defaultLzoIndex = false;
   private static final int defaultMaxOpenFiles = 5000;
   // Time between close retries, in seconds
   private static final long defaultRetryInterval = 180;
@@ -97,6 +98,7 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
   private int rollTimerPoolSize;
   private CompressionCodec codeC;
   private CompressionType compType;
+  private boolean lzoIndex;
   private String fileType;
   private String filePath;
   private String fileName;
@@ -195,6 +197,7 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
     batchSize = context.getLong("hdfs.batchSize", defaultBatchSize);
     idleTimeout = context.getInteger("hdfs.idleTimeout", 0);
     String codecName = context.getString("hdfs.codeC");
+    lzoIndex = context.getBoolean("hdfs.lzoIndex", defaultLzoIndex);
     fileType = context.getString("hdfs.fileType", defaultFileType);
     maxOpenFiles = context.getInteger("hdfs.maxOpenFiles", defaultMaxOpenFiles);
     callTimeout = context.getLong("hdfs.callTimeout", defaultCallTimeout);
@@ -478,7 +481,7 @@ public class HDFSEventSink extends AbstractSink implements Configurable {
     BucketWriter bucketWriter = new BucketWriter(rollInterval,
       rollSize, rollCount,
       batchSize, context, realPath, realName, inUsePrefix, inUseSuffix,
-      suffix, codeC, compType, hdfsWriter, timedRollerPool,
+      suffix, codeC, compType, lzoIndex, hdfsWriter, timedRollerPool,
       privExecutor, sinkCounter, idleTimeout, closeCallback,
       lookupPath, callTimeout, callTimeoutPool, retryInterval,
       tryCount);

@@ -100,6 +100,13 @@ limitations under the License.
       <artifactId>commons-io</artifactId>
     </dependency>
 
+    <dependency>
+      <groupId>com.hadoop.gplcompression</groupId>
+      <artifactId>hadoop-lzo</artifactId>
+      <version>0.4.15-gplextras5.0.0</version>
+      <optional>true</optional>
+    </dependency>
+
   </dependencies>
 
   <profiles>

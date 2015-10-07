@@ -18,22 +18,9 @@
 
 package org.apache.flume.sink.hdfs;
 
-import java.io.IOException;
-import java.lang.reflect.Method;
-import java.security.PrivilegedExceptionAction;
-import java.util.concurrent.Callable;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Throwables;
+import com.hadoop.compression.lzo.LzoIndexer;
 import org.apache.flume.Clock;
 import org.apache.flume.Context;
 import org.apache.flume.Event;
@@ -49,7 +36,12 @@ import org.apache.hadoop.io.compress.CompressionCodec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.base.Throwables;
+import java.io.IOException;
+import java.lang.reflect.Method;
+import java.security.PrivilegedExceptionAction;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Internal API intended for HDFSSink use.
@@ -74,6 +66,7 @@ class BucketWriter {
   private final long batchSize;
   private final CompressionCodec codeC;
   private final CompressionType compType;
+  private final boolean lzoIndex;
   private final ScheduledExecutorService timedRollerPool;
   private final PrivilegedExecutor proxyUser;
 
@@ -119,7 +112,7 @@ class BucketWriter {
   BucketWriter(long rollInterval, long rollSize, long rollCount, long batchSize,
     Context context, String filePath, String fileName, String inUsePrefix,
     String inUseSuffix, String fileSuffix, CompressionCodec codeC,
-    CompressionType compType, HDFSWriter writer,
+    CompressionType compType, boolean lzoIndex, HDFSWriter writer,
     ScheduledExecutorService timedRollerPool, PrivilegedExecutor proxyUser,
     SinkCounter sinkCounter, int idleTimeout, WriterCallback onCloseCallback,
     String onCloseCallbackPath, long callTimeout,
@@ -136,6 +129,7 @@ class BucketWriter {
     this.fileSuffix = fileSuffix;
     this.codeC = codeC;
     this.compType = compType;
+    this.lzoIndex = lzoIndex;
     this.writer = writer;
     this.timedRollerPool = timedRollerPool;
     this.proxyUser = proxyUser;
@@ -393,6 +387,9 @@ class BucketWriter {
       // could block or throw IOException
       try {
         renameBucket(bucketPath, targetPath, fileSystem);
+        if(lzoIndex) {
+          indexLzoFile(targetPath, fileSystem);
+        }
       } catch(Exception e) {
         LOG.warn(
           "failed to rename() file (" + bucketPath +
@@ -630,6 +627,20 @@ class BucketWriter {
           renameTries.incrementAndGet();
           fs.rename(srcPath, dstPath); // could block
         }
+        return null;
+      }
+    });
+  }
+
+  private void indexLzoFile(String lzoFile, final FileSystem fs) throws IOException, InterruptedException {
+    final Path path = new Path(lzoFile);
+
+    callWithTimeout(new CallRunner<Void>() {
+      @Override
+      public Void call() throws Exception {
+        LzoIndexer lzoIndexer = new LzoIndexer(fs.getConf());
+        LOG.info("Indexing lzo file " + path);
+        lzoIndexer.index(path); // could block
         return null;
       }
     });
