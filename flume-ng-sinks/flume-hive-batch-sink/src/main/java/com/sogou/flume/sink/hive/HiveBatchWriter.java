@@ -26,14 +26,22 @@ public class HiveBatchWriter {
   }
 
   public HiveBatchWriter(Configuration conf, Deserializer deserializer, String file,
+                         long idleTimeout) throws IOException {
+    this(conf, deserializer, file, idleTimeout, null);
+  }
+
+  public HiveBatchWriter(Configuration conf, Deserializer deserializer, String file,
                          long idleTimeout, List<Callback> callbacks) throws IOException {
     this.deserializer = deserializer;
     this.idleTimeout = idleTimeout;
     OrcFile.WriterOptions writerOptions = OrcFile.writerOptions(conf);
     writerOptions.inspector(deserializer.getObjectInspector());
     this.writer = OrcFile.createWriter(new Path(file), writerOptions);
-    for (Callback callback : callbacks) {
-      callback.run();
+
+    if (callbacks != null) {
+      for (Callback callback : callbacks) {
+        callback.run();
+      }
     }
   }
 
@@ -42,10 +50,17 @@ public class HiveBatchWriter {
     lastWriteTime = System.currentTimeMillis();
   }
 
+  public void close() throws IOException {
+    close(null);
+  }
+
   public void close(List<Callback> callbacks) throws IOException {
     writer.close();
-    for (Callback callback : callbacks) {
-      callback.run();
+
+    if (callbacks != null) {
+      for (Callback callback : callbacks) {
+        callback.run();
+      }
     }
   }
 
