@@ -68,12 +68,14 @@ limitations under the License.
           <name>flume.hadoop.profile</name>
           <value>2</value>
         </property>
+        <activeByDefault>true</activeByDefault>
       </activation>
       <!-- add the flume-dataset-sink, which is only compatible with hadoop-2
            -->
       <modules>
         <!--<module>flume-dataset-sink</module>-->
         <!--<module>flume-hive-sink</module>-->
+        <module>flume-hive-batch-sink</module>
       </modules>
     </profile>
 
@@ -89,6 +91,7 @@ limitations under the License.
       <modules>
         <module>flume-dataset-sink</module>
         <module>flume-hive-sink</module>
+        <module>flume-hive-batch-sink</module>
       </modules>
     </profile>
 

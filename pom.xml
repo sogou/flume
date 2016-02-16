@@ -1173,6 +1173,12 @@ limitations under the License.
 
       <dependency>
         <groupId>org.apache.flume.flume-ng-sinks</groupId>
+        <artifactId>flume-hive-batch-sink</artifactId>
+        <version>1.6.0</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.flume.flume-ng-sinks</groupId>
         <artifactId>flume-irc-sink</artifactId>
         <version>1.6.0</version>
       </dependency>
