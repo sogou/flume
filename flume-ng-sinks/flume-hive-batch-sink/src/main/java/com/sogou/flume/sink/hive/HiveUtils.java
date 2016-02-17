@@ -15,38 +15,18 @@ import java.util.*;
  * Created by Tao Li on 2/16/16.
  */
 public class HiveUtils {
-  private static final Logger LOG = LoggerFactory.getLogger(HiveBatchWriter2.class);
+  private static final Logger LOG = LoggerFactory.getLogger(HiveUtils.class);
 
-  public static void addPartition(Partition partition) throws TException {
-    HiveConf hiveConf = new HiveConf();
-    HiveMetaStoreClient client = new HiveMetaStoreClient(hiveConf);
-    List<Partition> partitions = client.listPartitions(
-        partition.getDbName(), partition.getTableName(), partition.getValues(), (short) 1);
-    if (partitions.size() != 0) {
-      LOG.info(String.format("partition already exist: %s.%s, %s",
-          partition.getDbName(), partition.getTableName(), partition.getValues()));
-    } else {
-      client.add_partition(partition);
-    }
-    client.close();
-  }
+  private static HiveConf hiveConf = new HiveConf();
 
-  public static void addPartition(String dbName, String tableName,
-                                  String columnNameProperty, String columnTypeProperty,
+  public static void addPartition(HiveMetaStoreClient client,
+                                  String dbName, String tableName,
                                   List<String> values, String location) throws TException {
     int createTime = (int) (System.currentTimeMillis() / 1000);
     int lastAccessTime = 0;
     Map<String, String> parameters = new HashMap<String, String>();
 
-    List<FieldSchema> cols = new ArrayList<FieldSchema>();
-    List<String> columnNames = Arrays.asList(columnNameProperty.split(","));
-    List<TypeInfo> columnTypes = TypeInfoUtils.getTypeInfosFromTypeString(columnTypeProperty);
-    assert columnNames.size() == columnTypes.size();
-    for (int i = 0; i < columnNames.size(); i++) {
-      FieldSchema fieldSchema =
-          new FieldSchema(columnNames.get(i), columnTypes.get(i).getTypeName(), "");
-      cols.add(fieldSchema);
-    }
+    List<FieldSchema> cols = client.getFields(dbName, tableName);
     String inputFormat = "org.apache.hadoop.hive.ql.io.orc.OrcInputFormat";
     String outputFormat = "org.apache.hadoop.hive.ql.io.orc.OrcOutputFormat";
     boolean compressed = false;
@@ -61,6 +41,20 @@ public class HiveUtils {
         compressed, numBuckets, serDeInfo, bucketCols, sortCols, sdParameters);
 
     Partition partition = new Partition(values, dbName, tableName, createTime, lastAccessTime, sd, parameters);
-    addPartition(partition);
+    List<Partition> partitions = client.listPartitions(
+        partition.getDbName(), partition.getTableName(), partition.getValues(), (short) 1);
+    if (partitions.size() != 0) {
+      LOG.info(String.format("partition already exist: %s.%s, %s",
+          partition.getDbName(), partition.getTableName(), partition.getValues()));
+    } else {
+      client.add_partition(partition);
+    }
+  }
+
+  public static void addPartition(String dbName, String tableName,
+                                  List<String> values, String location) throws TException {
+    HiveMetaStoreClient client = new HiveMetaStoreClient(hiveConf);
+    addPartition(client, dbName, tableName, values, location);
+    client.close();
   }
 }
