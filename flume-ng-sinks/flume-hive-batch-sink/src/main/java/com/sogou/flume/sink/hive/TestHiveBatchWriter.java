@@ -24,7 +24,8 @@ public class TestHiveBatchWriter {
     List<HiveBatchWriter.Callback> closeCallBacks = new ArrayList<HiveBatchWriter.Callback>();
     closeCallBacks.add(new CloseCallback(logdate));
 
-    HiveBatchWriter writer = new HiveBatchWriter(conf, deserializer, file, 5000, initCallBacks);
+    HiveBatchWriter writer = new HiveBatchWriter(conf, deserializer, file, 5000,
+        initCallBacks, closeCallBacks);
 
     for (int i = 0; i < 9; i++) {
       String testLine = String.format("hello%d %d e1%d,e2%d k1=v1%d&k2=v2%d 1%d:url1%d,2%d:url2%d", i, i, i, i, i, i, i, i, i, i, i, i);
@@ -32,7 +33,7 @@ public class TestHiveBatchWriter {
       writer.append(bytes);
     }
 
-    writer.close(closeCallBacks);
+    writer.close();
   }
 }
 

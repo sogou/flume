@@ -14,12 +14,14 @@ import java.util.List;
  * Created by Tao Li on 2/16/16.
  */
 public class HiveBatchWriter {
-  private static final Logger LOG = LoggerFactory.getLogger(HiveBatchWriter2.class);
+  private static final Logger LOG = LoggerFactory.getLogger(HiveBatchWriter.class);
 
   private long lastWriteTime = -1;  // -1: no data write yet
   private Writer writer;
   private Deserializer deserializer;
   private long idleTimeout = 5000;
+  private List<Callback> initCallbacks = null;
+  private List<Callback> closeCallbacks = null;
 
   public interface Callback {
     void run();
@@ -27,19 +29,23 @@ public class HiveBatchWriter {
 
   public HiveBatchWriter(Configuration conf, Deserializer deserializer, String file,
                          long idleTimeout) throws IOException {
-    this(conf, deserializer, file, idleTimeout, null);
+    this(conf, deserializer, file, idleTimeout, null, null);
   }
 
   public HiveBatchWriter(Configuration conf, Deserializer deserializer, String file,
-                         long idleTimeout, List<Callback> callbacks) throws IOException {
+                         long idleTimeout,
+                         List<Callback> initCallbacks, List<Callback> closeCallbacks)
+      throws IOException {
     this.deserializer = deserializer;
     this.idleTimeout = idleTimeout;
+    this.initCallbacks = initCallbacks;
+    this.closeCallbacks = closeCallbacks;
     OrcFile.WriterOptions writerOptions = OrcFile.writerOptions(conf);
     writerOptions.inspector(deserializer.getObjectInspector());
     this.writer = OrcFile.createWriter(new Path(file), writerOptions);
 
-    if (callbacks != null) {
-      for (Callback callback : callbacks) {
+    if (initCallbacks != null) {
+      for (Callback callback : initCallbacks) {
         callback.run();
       }
     }
@@ -51,14 +57,10 @@ public class HiveBatchWriter {
   }
 
   public void close() throws IOException {
-    close(null);
-  }
-
-  public void close(List<Callback> callbacks) throws IOException {
     writer.close();
 
-    if (callbacks != null) {
-      for (Callback callback : callbacks) {
+    if (closeCallbacks != null) {
+      for (Callback callback : closeCallbacks) {
         callback.run();
       }
     }
