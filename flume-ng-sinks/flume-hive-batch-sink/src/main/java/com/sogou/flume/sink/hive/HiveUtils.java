@@ -53,8 +53,29 @@ public class HiveUtils {
 
   public static void addPartition(String dbName, String tableName,
                                   List<String> values, String location) throws TException {
-    HiveMetaStoreClient client = new HiveMetaStoreClient(hiveConf);
-    addPartition(client, dbName, tableName, values, location);
-    client.close();
+    HiveMetaStoreClient client = null;
+    try {
+      client = new HiveMetaStoreClient(hiveConf);
+      addPartition(client, dbName, tableName, values, location);
+    } finally {
+      if (client != null)
+        client.close();
+    }
+  }
+
+  public static List<FieldSchema> getFields(HiveMetaStoreClient client,
+                                            String dbName, String tableName) throws TException {
+    return client.getFields(dbName, tableName);
+  }
+
+  public static List<FieldSchema> getFields(String dbName, String tableName) throws TException {
+    HiveMetaStoreClient client = null;
+    try {
+      client = new HiveMetaStoreClient(hiveConf);
+      return getFields(dbName, tableName);
+    } finally {
+      if (client != null)
+        client.close();
+    }
   }
 }
