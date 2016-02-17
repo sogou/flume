@@ -14,7 +14,8 @@ import java.util.Map;
 public class TestHiveBatchWriter {
   public static void main(String[] args) throws IOException {
     Configuration conf = new Configuration();
-    Deserializer deserializer = new MyDeserializer("f0,f1,f2,f3,f4", "string,int,array<string>,map<string,string>,array<struct<pos:int,url:string>>");
+    Deserializer deserializer = new MyDeserializer();
+    deserializer.initialize("f0,f1,f2,f3,f4", "string,int,array<string>,map<string,string>,array<struct<pos:int,url:string>>");
     String logdate = args[0];
     long currentTimestamp = System.currentTimeMillis();
     String file = String.format("hdfs://SunshineNameNode2/user/hive/warehouse/litao.db/testorc/logdate=%s/helloorc-%s-%s.orc",
@@ -38,10 +39,6 @@ public class TestHiveBatchWriter {
 }
 
 class MyDeserializer extends AbstractDeserializer {
-
-  public MyDeserializer(String columnNameProperty, String columnTypeProperty) {
-    super(columnNameProperty, columnTypeProperty);
-  }
 
   @Override
   public List<Object> deserialize(byte[] bytes, List<Object> reuse) {

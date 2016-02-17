@@ -17,7 +17,8 @@ public abstract class AbstractDeserializer implements Deserializer {
   private ObjectInspector rowOI;
   private List<Object> row = new ArrayList<Object>();
 
-  public AbstractDeserializer(String columnNameProperty, String columnTypeProperty) {
+  @Override
+  public void initialize(String columnNameProperty, String columnTypeProperty) {
     List<String> columnNames = Arrays.asList(columnNameProperty.split(","));
     List<TypeInfo> columnTypes = TypeInfoUtils.getTypeInfosFromTypeString(columnTypeProperty);
     StructTypeInfo rowTypeInfo = (StructTypeInfo) TypeInfoFactory.getStructTypeInfo(columnNames, columnTypes);
