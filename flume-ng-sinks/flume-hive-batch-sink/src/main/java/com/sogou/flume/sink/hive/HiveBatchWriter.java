@@ -19,6 +19,7 @@ public class HiveBatchWriter {
   private long lastWriteTime = -1;  // -1: no data write yet
   private Writer writer;
   private Deserializer deserializer;
+  private String file;
   private long idleTimeout = 5000;
   private List<Callback> initCallbacks = null;
   private List<Callback> closeCallbacks = null;
@@ -27,9 +28,9 @@ public class HiveBatchWriter {
     void run();
   }
 
-  public HiveBatchWriter(Configuration conf, Deserializer deserializer, String file,
+  public HiveBatchWriter(Configuration conf, Deserializer deserializer, String location,
                          long idleTimeout) throws IOException {
-    this(conf, deserializer, file, idleTimeout, null, null);
+    this(conf, deserializer, location, idleTimeout, null, null);
   }
 
   public HiveBatchWriter(Configuration conf, Deserializer deserializer, String file,
@@ -37,6 +38,7 @@ public class HiveBatchWriter {
                          List<Callback> initCallbacks, List<Callback> closeCallbacks)
       throws IOException {
     this.deserializer = deserializer;
+    this.file = file;
     this.idleTimeout = idleTimeout;
     this.initCallbacks = initCallbacks;
     this.closeCallbacks = closeCallbacks;
@@ -68,5 +70,9 @@ public class HiveBatchWriter {
 
   public boolean isIdle() {
     return lastWriteTime > 0 && System.currentTimeMillis() - lastWriteTime >= idleTimeout;
+  }
+
+  public String getFile() {
+    return file;
   }
 }

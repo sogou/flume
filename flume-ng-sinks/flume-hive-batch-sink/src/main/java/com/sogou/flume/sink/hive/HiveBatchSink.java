@@ -26,7 +26,8 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
 
   private String database;
   private String table;
-  private String filePath;
+  private String partition;
+  private String path;
   private String fileName;
   private String suffix;
   private TimeZone timeZone;
@@ -87,7 +88,8 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
                   writer.close();
                   writers.remove(path);
                 } catch (IOException e) {
-                  LOG.warn("Exception while closing " + path + ". " + "Exception follows.", e);
+                  LOG.warn("Exception while closing " + writer.getFile()
+                      + ". Exception follows.", e);
                 }
               }
             }
@@ -121,14 +123,16 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     database = context.getString(Config.HIVE_DATABASE, Config.Default.DEFAULT_DATABASE);
     table = Preconditions.checkNotNull(context.getString(Config.HIVE_TABLE),
         Config.HIVE_TABLE + " is required");
-    filePath = Preconditions.checkNotNull(context.getString(Config.HIVE_PATH),
+    path = Preconditions.checkNotNull(context.getString(Config.HIVE_PATH),
         Config.HIVE_PATH + " is required");
+    partition = context.getString(Config.HIVE_PARTITION, Config.Default.DEFAULT_PARTITION);
     fileName = context.getString(Config.HIVE_FILE_PREFIX, Config.Default.DEFAULT_FILE_PREFIX);
     this.suffix = context.getString(Config.HIVE_FILE_SUFFIX, Config.Default.DEFAULT_FILE_SUFFIX);
     String tzName = context.getString(Config.HIVE_TIME_ZONE);
     timeZone = tzName == null ? null : TimeZone.getTimeZone(tzName);
     maxOpenFiles = context.getInteger(Config.HIVE_MAX_OPEN_FILES, Config.Default.DEFAULT_MAX_OPEN_FILES);
     batchSize = context.getLong(Config.HIVE_BATCH_SIZE, Config.Default.DEFAULT_BATCH_SIZE);
+
     String deserializerName = Preconditions.checkNotNull(context.getString(Config.HIVE_DESERIALIZER),
         Config.HIVE_DESERIALIZER + " is required");
     try {
@@ -183,20 +187,23 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
           break;
         }
 
-        String realPath = BucketPath.escapeString(filePath, event.getHeaders(),
+        String rootPath = BucketPath.escapeString(path, event.getHeaders(),
+            timeZone, needRounding, roundUnit, roundValue, useLocalTime);
+        String realPartition = BucketPath.escapeString(partition, event.getHeaders(),
             timeZone, needRounding, roundUnit, roundValue, useLocalTime);
         String realName = BucketPath.escapeString(fileName, event.getHeaders(),
             timeZone, needRounding, roundUnit, roundValue, useLocalTime);
-        String lookupPath = realPath + DIRECTORY_DELIMITER + realName;
+        String partitionPath = rootPath + DIRECTORY_DELIMITER + realPartition;
+        String keyPath = partitionPath + DIRECTORY_DELIMITER + realName;
         // FIXME fullFileName may not be unique, which will cause write to the same orc file
-        String fullFileName = lookupPath + "." + System.nanoTime() + "." + this.suffix;
+        String fullFileName = realName + "." + System.nanoTime() + "." + this.suffix;
 
         HiveBatchWriter writer;
         synchronized (writersLock) {
-          writer = writers.get(lookupPath);
+          writer = writers.get(keyPath);
           if (writer == null) {
-            writer = initializeHiveBatchWriter(fullFileName, null, null);
-            writers.put(lookupPath, writer);
+            writer = initializeHiveBatchWriter(partitionPath, fullFileName, realPartition);
+            writers.put(keyPath, writer);
           }
         }
 
@@ -219,12 +226,21 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     }
   }
 
-  private HiveBatchWriter initializeHiveBatchWriter(String realPath,
-                                                    List<HiveBatchWriter.Callback> initCallbacks,
-                                                    List<HiveBatchWriter.Callback> closeCallbacks)
+  private HiveBatchWriter initializeHiveBatchWriter(String path, String fileName, String partition)
       throws IOException {
-    return new HiveBatchWriter(conf, deserializer, realPath, idleTimeout,
-        initCallbacks, closeCallbacks);
+    String file = path + DIRECTORY_DELIMITER + fileName;
+
+    List<String> values = new ArrayList<String>();
+    for (String part : partition.split("/")) {
+      values.add(part.split("=")[1]);
+    }
+    List<HiveBatchWriter.Callback> closeCallbacks = new ArrayList<HiveBatchWriter.Callback>();
+    HiveBatchWriter.Callback addPartitionCallback = new AddPartitionCallback(database, table,
+        values, path);
+    closeCallbacks.add(addPartitionCallback);
+
+
+    return new HiveBatchWriter(conf, deserializer, file, idleTimeout, null, closeCallbacks);
   }
 
   @Override
