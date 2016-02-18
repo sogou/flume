@@ -39,12 +39,12 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   private Configuration conf = new Configuration();
   private Deserializer deserializer;
   private long idleTimeout = 5000;
-  private Clock clock;
 
   private final Object writersLock = new Object();
   private WriterLinkedHashMap writers;
   private IdleHiveBatchWriterMonitor idleWriterMonitor;
   private boolean isRunning = false;
+
 
   private class WriterLinkedHashMap extends LinkedHashMap<String, HiveBatchWriter> {
     private final int maxOpenFiles;
@@ -168,9 +168,6 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       }
     }
     this.useLocalTime = context.getBoolean(Config.HIVE_USE_LOCAL_TIMESTAMP, Config.Default.DEFAULT_USE_LOCAL_TIMESTAMP);
-    if (useLocalTime) {
-      clock = new SystemClock();
-    }
   }
 
   @Override
@@ -191,12 +188,14 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
         String realName = BucketPath.escapeString(fileName, event.getHeaders(),
             timeZone, needRounding, roundUnit, roundValue, useLocalTime);
         String lookupPath = realPath + DIRECTORY_DELIMITER + realName;
+        // FIXME fullFileName may not be unique, which will cause write to the same orc file
+        String fullFileName = lookupPath + "." + System.nanoTime() + "." + this.suffix;
 
         HiveBatchWriter writer;
         synchronized (writersLock) {
           writer = writers.get(lookupPath);
           if (writer == null) {
-            writer = initializeHiveBatchWriter(lookupPath, null, null);
+            writer = initializeHiveBatchWriter(fullFileName, null, null);
             writers.put(lookupPath, writer);
           }
         }
