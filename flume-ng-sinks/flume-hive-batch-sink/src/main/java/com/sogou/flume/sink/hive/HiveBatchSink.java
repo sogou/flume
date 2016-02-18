@@ -2,6 +2,9 @@ package com.sogou.flume.sink.hive;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.sogou.flume.sink.hive.callback.AddPartitionCallback;
+import com.sogou.flume.sink.hive.deserializer.Deserializer;
+import com.sogou.flume.sink.hive.util.HiveUtils;
 import org.apache.flume.*;
 import org.apache.flume.conf.Configurable;
 import org.apache.flume.formatter.output.BucketPath;
@@ -238,7 +241,6 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     HiveBatchWriter.Callback addPartitionCallback = new AddPartitionCallback(database, table,
         values, path);
     closeCallbacks.add(addPartitionCallback);
-
 
     return new HiveBatchWriter(conf, deserializer, file, idleTimeout, null, closeCallbacks);
   }

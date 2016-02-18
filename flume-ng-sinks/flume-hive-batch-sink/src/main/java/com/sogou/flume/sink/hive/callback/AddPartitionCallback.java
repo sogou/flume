@@ -1,5 +1,7 @@
-package com.sogou.flume.sink.hive;
+package com.sogou.flume.sink.hive.callback;
 
+import com.sogou.flume.sink.hive.HiveBatchWriter;
+import com.sogou.flume.sink.hive.util.HiveUtils;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
