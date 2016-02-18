@@ -28,6 +28,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   private String table;
   private String filePath;
   private String fileName;
+  private String suffix;
   private TimeZone timeZone;
   private int maxOpenFiles;
   private long batchSize;
@@ -38,6 +39,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   private Configuration conf = new Configuration();
   private Deserializer deserializer;
   private long idleTimeout = 5000;
+  private Clock clock;
 
   private final Object writersLock = new Object();
   private WriterLinkedHashMap writers;
@@ -115,14 +117,14 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   }
 
   @Override
-
   public void configure(Context context) {
     database = context.getString(Config.HIVE_DATABASE, Config.Default.DEFAULT_DATABASE);
     table = Preconditions.checkNotNull(context.getString(Config.HIVE_TABLE),
         Config.HIVE_TABLE + " is required");
     filePath = Preconditions.checkNotNull(context.getString(Config.HIVE_PATH),
         Config.HIVE_PATH + " is required");
-    fileName = context.getString(Config.HIVE_FILE_NAME, Config.Default.DEFAULT_FILE_NAME);
+    fileName = context.getString(Config.HIVE_FILE_PREFIX, Config.Default.DEFAULT_FILE_PREFIX);
+    this.suffix = context.getString(Config.HIVE_FILE_SUFFIX, Config.Default.DEFAULT_FILE_SUFFIX);
     String tzName = context.getString(Config.HIVE_TIME_ZONE);
     timeZone = tzName == null ? null : TimeZone.getTimeZone(tzName);
     maxOpenFiles = context.getInteger(Config.HIVE_MAX_OPEN_FILES, Config.Default.DEFAULT_MAX_OPEN_FILES);
@@ -144,6 +146,31 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     } catch (Exception e) {
       throw new IllegalArgumentException(deserializerName + " init failed", e);
     }
+
+    needRounding = context.getBoolean(Config.HIVE_ROUND, Config.Default.DEFAULT_ROUND);
+    if (needRounding) {
+      String unit = context.getString(Config.HIVE_ROUND_UNIT, Config.Default.DEFAULT_ROUND_UNIT);
+      if (unit.equalsIgnoreCase("hour")) {
+        this.roundUnit = Calendar.HOUR_OF_DAY;
+      } else if (unit.equalsIgnoreCase("minute")) {
+        this.roundUnit = Calendar.MINUTE;
+      } else if (unit.equalsIgnoreCase("second")) {
+        this.roundUnit = Calendar.SECOND;
+      } else {
+        LOG.warn("Rounding unit is not valid, please set one of minute, hour, or second. Rounding will be disabled");
+        needRounding = false;
+      }
+      this.roundValue = context.getInteger(Config.HIVE_ROUND_VALUE, Config.Default.DEFAULT_ROUND_VALUE);
+      if (roundUnit == Calendar.SECOND || roundUnit == Calendar.MINUTE) {
+        Preconditions.checkArgument(roundValue > 0 && roundValue <= 60, "Round value must be > 0 and <= 60");
+      } else if (roundUnit == Calendar.HOUR_OF_DAY) {
+        Preconditions.checkArgument(roundValue > 0 && roundValue <= 24, "Round value must be > 0 and <= 24");
+      }
+    }
+    this.useLocalTime = context.getBoolean(Config.HIVE_USE_LOCAL_TIMESTAMP, Config.Default.DEFAULT_USE_LOCAL_TIMESTAMP);
+    if (useLocalTime) {
+      clock = new SystemClock();
+    }
   }
 
   @Override
@@ -155,6 +182,9 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       int txnEventCount;
       for (txnEventCount = 0; txnEventCount < batchSize; txnEventCount++) {
         Event event = channel.take();
+        if (event == null) {
+          break;
+        }
 
         String realPath = BucketPath.escapeString(filePath, event.getHeaders(),
             timeZone, needRounding, roundUnit, roundValue, useLocalTime);
@@ -175,6 +205,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       }
       // FIXME data may not flush to orcfile after commit transaction, which will cause data lose
       transaction.commit();
+
       if (txnEventCount < 1) {
         return Status.BACKOFF;
       } else {

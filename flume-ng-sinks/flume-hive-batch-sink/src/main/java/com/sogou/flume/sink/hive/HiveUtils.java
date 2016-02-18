@@ -72,7 +72,7 @@ public class HiveUtils {
     HiveMetaStoreClient client = null;
     try {
       client = new HiveMetaStoreClient(hiveConf);
-      return getFields(dbName, tableName);
+      return getFields(client, dbName, tableName);
     } finally {
       if (client != null)
         client.close();
