@@ -1,4 +1,4 @@
-package com.sogou.flume.sink.hive.deserializer;
+package org.apache.flume.sink.hive.batch.deserializer;
 
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;

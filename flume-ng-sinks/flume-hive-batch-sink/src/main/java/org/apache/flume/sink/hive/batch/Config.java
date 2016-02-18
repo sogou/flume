@@ -1,4 +1,4 @@
-package com.sogou.flume.sink.hive;
+package org.apache.flume.sink.hive.batch;
 
 /**
  * Created by Tao Li on 2016/2/17.

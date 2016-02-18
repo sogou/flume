@@ -1,4 +1,4 @@
-package com.sogou.flume.sink.hive.util;
+package org.apache.flume.sink.hive.batch.util;
 
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;

@@ -1,10 +1,11 @@
-package com.sogou.flume.sink.hive;
+package org.apache.flume.sink.hive.batch;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
-import com.sogou.flume.sink.hive.callback.AddPartitionCallback;
-import com.sogou.flume.sink.hive.deserializer.Deserializer;
-import com.sogou.flume.sink.hive.util.HiveUtils;
+import com.sogou.flume.sink.hive.batch.callback.UpdateLogDetailCallback;
+import org.apache.flume.sink.hive.batch.callback.AddPartitionCallback;
+import org.apache.flume.sink.hive.batch.deserializer.Deserializer;
+import org.apache.flume.sink.hive.batch.util.HiveUtils;
 import org.apache.flume.*;
 import org.apache.flume.conf.Configurable;
 import org.apache.flume.formatter.output.BucketPath;
@@ -233,6 +234,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       throws IOException {
     String file = path + DIRECTORY_DELIMITER + fileName;
 
+    // TODO callbacks should be configurable not hard code
     List<String> values = new ArrayList<String>();
     for (String part : partition.split("/")) {
       values.add(part.split("=")[1]);

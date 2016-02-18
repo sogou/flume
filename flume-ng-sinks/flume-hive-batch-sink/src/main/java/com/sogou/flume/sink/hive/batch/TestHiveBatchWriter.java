@@ -1,7 +1,8 @@
-package com.sogou.flume.sink.hive;
+package com.sogou.flume.sink.hive.batch;
 
-import com.sogou.flume.sink.hive.deserializer.AbstractDeserializer;
-import com.sogou.flume.sink.hive.deserializer.Deserializer;
+import org.apache.flume.sink.hive.batch.HiveBatchWriter;
+import org.apache.flume.sink.hive.batch.deserializer.AbstractDeserializer;
+import org.apache.flume.sink.hive.batch.deserializer.Deserializer;
 import org.apache.hadoop.conf.Configuration;
 
 import java.io.IOException;

@@ -1,6 +1,6 @@
-package com.sogou.flume.sink.hive;
+package com.sogou.flume.sink.hive.batch;
 
-import com.sogou.flume.sink.hive.util.HiveUtils;
+import org.apache.flume.sink.hive.batch.util.HiveUtils;
 import org.apache.thrift.TException;
 
 import java.util.ArrayList;
