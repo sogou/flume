@@ -142,7 +142,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
 
     String serdeName = Preconditions.checkNotNull(context.getString(Config.HIVE_SERDE),
         Config.HIVE_SERDE + " is required");
-    Map<String, String> serdeProperties = context.getSubProperties(Config.HIVE_SERDE + ".");
+    Map<String, String> serdeProperties = context.getSubProperties(Config.HIVE_SERDE_PROPERTIES + ".");
     try {
       Properties tbl = new Properties();
       for (Map.Entry<String, String> entry : serdeProperties.entrySet()) {

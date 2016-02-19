@@ -18,6 +18,7 @@ public class Config {
   public static final String HIVE_BATCH_SIZE = "hive.batchSize";
   public static final String HIVE_IDLE_TIMEOUT = "hive.idleTimeout";
   public static final String HIVE_SERDE = "hive.serde";
+  public static final String HIVE_SERDE_PROPERTIES = "hive.serdeProperties";
   public static final String HIVE_ROUND = "hive.round";
   public static final String HIVE_ROUND_UNIT = "hive.roundUnit";
   public static final String HIVE_ROUND_VALUE = "hive.roundValue";
