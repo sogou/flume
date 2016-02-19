@@ -1,5 +1,8 @@
 package org.apache.flume.sink.hive.batch;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Created by Tao Li on 2016/2/17.
  */
@@ -12,15 +15,15 @@ public class Config {
   public static final String HIVE_FILE_SUFFIX = "hive.fileSuffix";
   public static final String HIVE_TIME_ZONE = "hive.timeZone";
   public static final String HIVE_MAX_OPEN_FILES = "hive.maxOpenFiles";
-  public static final String HIVE_IDLE_TIMEOUT = "hive.idleTimeout";
   public static final String HIVE_BATCH_SIZE = "hive.batchSize";
-  public static final String HIVE_DESERIALIZER = "hive.deserializer";
+  public static final String HIVE_IDLE_TIMEOUT = "hive.idleTimeout";
+  public static final String HIVE_SERDE = "hive.serde";
   public static final String HIVE_ROUND = "hive.round";
   public static final String HIVE_ROUND_UNIT = "hive.roundUnit";
   public static final String HIVE_ROUND_VALUE = "hive.roundValue";
   public static final String HIVE_USE_LOCAL_TIMESTAMP = "hive.useLocalTimeStamp";
 
-  public class Default {
+  public static class Default {
     public static final String DEFAULT_DATABASE = "default";
     public static final String DEFAULT_PARTITION = "";
     public static final String DEFAULT_FILE_PREFIX = "FlumeData";

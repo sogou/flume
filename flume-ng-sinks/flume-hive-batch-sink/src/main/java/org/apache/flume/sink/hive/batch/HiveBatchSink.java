@@ -1,5 +1,6 @@
 package org.apache.flume.sink.hive.batch;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import org.apache.flume.*;
 import org.apache.flume.conf.Configurable;
@@ -8,6 +9,8 @@ import org.apache.flume.sink.AbstractSink;
 import org.apache.flume.sink.hive.batch.callback.AddPartitionCallback;
 import org.apache.flume.sink.hive.batch.util.HiveUtils;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.slf4j.Logger;
@@ -137,14 +140,31 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     batchSize = context.getLong(Config.HIVE_BATCH_SIZE, Config.Default.DEFAULT_BATCH_SIZE);
     idleTimeout = context.getLong(Config.HIVE_IDLE_TIMEOUT, Config.Default.DEFAULT_IDLE_TIMEOUT);
 
-    String deserializerName = Preconditions.checkNotNull(context.getString(Config.HIVE_DESERIALIZER),
-        Config.HIVE_DESERIALIZER + " is required");
+    String serdeName = Preconditions.checkNotNull(context.getString(Config.HIVE_SERDE),
+        Config.HIVE_SERDE + " is required");
+    Map<String, String> serdeProperties = context.getSubProperties(Config.HIVE_SERDE + ".");
     try {
-      deserializer = (Deserializer) Class.forName(deserializerName).newInstance();
-      Properties tbl = HiveUtils.getTableProperties(dbName, tableName);
+      Properties tbl = new Properties();
+      for (Map.Entry<String, String> entry : serdeProperties.entrySet()) {
+        tbl.setProperty(entry.getKey(), entry.getValue());
+      }
+
+      List<FieldSchema> fields = HiveUtils.getFields(dbName, tableName);
+      List<String> columnNames = new ArrayList<String>();
+      List<String> columnTypes = new ArrayList<String>();
+      for (FieldSchema field : fields) {
+        columnNames.add(field.getName());
+        columnTypes.add(field.getType());
+      }
+      String columnNameProperty = Joiner.on(",").join(columnNames);
+      String columnTypeProperty = Joiner.on(",").join(columnTypes);
+      tbl.setProperty(serdeConstants.LIST_COLUMNS, columnNameProperty);
+      tbl.setProperty(serdeConstants.LIST_COLUMN_TYPES, columnTypeProperty);
+
+      deserializer = (Deserializer) Class.forName(serdeName).newInstance();
       deserializer.initialize(conf, tbl);
     } catch (Exception e) {
-      throw new IllegalArgumentException(deserializerName + " init failed", e);
+      throw new IllegalArgumentException(serdeName + " init failed", e);
     }
 
     needRounding = context.getBoolean(Config.HIVE_ROUND, Config.Default.DEFAULT_ROUND);

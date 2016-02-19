@@ -46,12 +46,13 @@ public class HiveBatchWriter {
     this.idleTimeout = idleTimeout;
     this.initCallbacks = initCallbacks;
     this.closeCallbacks = closeCallbacks;
+
     OrcFile.WriterOptions writerOptions = OrcFile.writerOptions(conf);
     writerOptions.inspector(deserializer.getObjectInspector());
     this.writer = OrcFile.createWriter(new Path(file), writerOptions);
 
-    if (initCallbacks != null) {
-      for (Callback callback : initCallbacks) {
+    if (this.initCallbacks != null) {
+      for (Callback callback : this.initCallbacks) {
         callback.run();
       }
     }
