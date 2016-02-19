@@ -1,10 +1,13 @@
 package org.apache.flume.sink.hive.batch;
 
-import org.apache.flume.sink.hive.batch.deserializer.Deserializer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile;
 import org.apache.hadoop.hive.ql.io.orc.Writer;
+import org.apache.hadoop.hive.serde2.Deserializer;
+import org.apache.hadoop.hive.serde2.SerDe;
+import org.apache.hadoop.hive.serde2.SerDeException;
+import org.apache.hadoop.io.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,7 +24,7 @@ public class HiveBatchWriter {
   private Writer writer;
   private Deserializer deserializer;
   private String file;
-  private long idleTimeout = 5000;
+  private long idleTimeout;
   private List<Callback> initCallbacks = null;
   private List<Callback> closeCallbacks = null;
 
@@ -29,15 +32,15 @@ public class HiveBatchWriter {
     void run();
   }
 
-  public HiveBatchWriter(Configuration conf, Deserializer deserializer, String location,
-                         long idleTimeout) throws IOException {
-    this(conf, deserializer, location, idleTimeout, null, null);
+  public HiveBatchWriter(Configuration conf, SerDe serde, String location,
+                         long idleTimeout) throws IOException, SerDeException {
+    this(conf, serde, location, idleTimeout, null, null);
   }
 
   public HiveBatchWriter(Configuration conf, Deserializer deserializer, String file,
                          long idleTimeout,
                          List<Callback> initCallbacks, List<Callback> closeCallbacks)
-      throws IOException {
+      throws IOException, SerDeException {
     this.deserializer = deserializer;
     this.file = file;
     this.idleTimeout = idleTimeout;
@@ -54,8 +57,8 @@ public class HiveBatchWriter {
     }
   }
 
-  public void append(byte[] bytes) throws IOException {
-    writer.addRow(deserializer.deserialize(bytes));
+  public void append(byte[] bytes) throws IOException, SerDeException {
+    writer.addRow(deserializer.deserialize(new Text(bytes)));
     lastWriteTime = System.currentTimeMillis();
   }
 

@@ -12,6 +12,7 @@ public class Config {
   public static final String HIVE_FILE_SUFFIX = "hive.fileSuffix";
   public static final String HIVE_TIME_ZONE = "hive.timeZone";
   public static final String HIVE_MAX_OPEN_FILES = "hive.maxOpenFiles";
+  public static final String HIVE_IDLE_TIMEOUT = "hive.idleTimeout";
   public static final String HIVE_BATCH_SIZE = "hive.batchSize";
   public static final String HIVE_DESERIALIZER = "hive.deserializer";
   public static final String HIVE_ROUND = "hive.round";
@@ -26,6 +27,7 @@ public class Config {
     public static final String DEFAULT_FILE_SUFFIX = "orc";
     public static final int DEFAULT_MAX_OPEN_FILES = 5000;
     public static final long DEFAULT_BATCH_SIZE = 1000;
+    public static final long DEFAULT_IDLE_TIMEOUT = 5000;
     public static final boolean DEFAULT_ROUND = false;
     public static final String DEFAULT_ROUND_UNIT = "second";
     public static final int DEFAULT_ROUND_VALUE = 1;

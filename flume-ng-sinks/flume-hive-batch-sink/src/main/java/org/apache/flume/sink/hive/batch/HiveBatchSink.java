@@ -1,17 +1,15 @@
 package org.apache.flume.sink.hive.batch;
 
-import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
-import com.sogou.flume.sink.hive.batch.callback.UpdateLogDetailCallback;
-import org.apache.flume.sink.hive.batch.callback.AddPartitionCallback;
-import org.apache.flume.sink.hive.batch.deserializer.Deserializer;
-import org.apache.flume.sink.hive.batch.util.HiveUtils;
 import org.apache.flume.*;
 import org.apache.flume.conf.Configurable;
 import org.apache.flume.formatter.output.BucketPath;
 import org.apache.flume.sink.AbstractSink;
+import org.apache.flume.sink.hive.batch.callback.AddPartitionCallback;
+import org.apache.flume.sink.hive.batch.util.HiveUtils;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.serde2.Deserializer;
+import org.apache.hadoop.hive.serde2.SerDeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,8 +26,9 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
 
   private static String DIRECTORY_DELIMITER = System.getProperty("file.separator");
 
-  private String database;
-  private String table;
+  private Configuration conf;
+  private String dbName;
+  private String tableName;
   private String partition;
   private String path;
   private String fileName;
@@ -37,13 +36,12 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   private TimeZone timeZone;
   private int maxOpenFiles;
   private long batchSize;
-  private boolean needRounding = false;
+  private long idleTimeout;
+  private boolean needRounding;
   private int roundUnit = Calendar.SECOND;
   private int roundValue = 1;
   private boolean useLocalTime = false;
-  private Configuration conf = new Configuration();
   private Deserializer deserializer;
-  private long idleTimeout = 5000;
 
   private final Object writersLock = new Object();
   private WriterLinkedHashMap writers;
@@ -124,8 +122,9 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
 
   @Override
   public void configure(Context context) {
-    database = context.getString(Config.HIVE_DATABASE, Config.Default.DEFAULT_DATABASE);
-    table = Preconditions.checkNotNull(context.getString(Config.HIVE_TABLE),
+    conf = new Configuration();
+    dbName = context.getString(Config.HIVE_DATABASE, Config.Default.DEFAULT_DATABASE);
+    tableName = Preconditions.checkNotNull(context.getString(Config.HIVE_TABLE),
         Config.HIVE_TABLE + " is required");
     path = Preconditions.checkNotNull(context.getString(Config.HIVE_PATH),
         Config.HIVE_PATH + " is required");
@@ -136,21 +135,14 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     timeZone = tzName == null ? null : TimeZone.getTimeZone(tzName);
     maxOpenFiles = context.getInteger(Config.HIVE_MAX_OPEN_FILES, Config.Default.DEFAULT_MAX_OPEN_FILES);
     batchSize = context.getLong(Config.HIVE_BATCH_SIZE, Config.Default.DEFAULT_BATCH_SIZE);
+    idleTimeout = context.getLong(Config.HIVE_IDLE_TIMEOUT, Config.Default.DEFAULT_IDLE_TIMEOUT);
 
     String deserializerName = Preconditions.checkNotNull(context.getString(Config.HIVE_DESERIALIZER),
         Config.HIVE_DESERIALIZER + " is required");
     try {
-      this.deserializer = (Deserializer) Class.forName(deserializerName).newInstance();
-      List<FieldSchema> fields = HiveUtils.getFields(database, table);
-      List<String> columnNames = new ArrayList<String>();
-      List<String> columnTypes = new ArrayList<String>();
-      for (FieldSchema field : fields) {
-        columnNames.add(field.getName());
-        columnTypes.add(field.getType());
-      }
-      String columnNameProperty = Joiner.on(",").join(columnNames);
-      String columnTypeProperty = Joiner.on(",").join(columnTypes);
-      this.deserializer.initialize(columnNameProperty, columnTypeProperty);
+      deserializer = (Deserializer) Class.forName(deserializerName).newInstance();
+      Properties tbl = HiveUtils.getTableProperties(dbName, tableName);
+      deserializer.initialize(conf, tbl);
     } catch (Exception e) {
       throw new IllegalArgumentException(deserializerName + " init failed", e);
     }
@@ -231,7 +223,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   }
 
   private HiveBatchWriter initializeHiveBatchWriter(String path, String fileName, String partition)
-      throws IOException {
+      throws IOException, SerDeException {
     String file = path + DIRECTORY_DELIMITER + fileName;
 
     // TODO callbacks should be configurable not hard code
@@ -240,7 +232,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       values.add(part.split("=")[1]);
     }
     List<HiveBatchWriter.Callback> closeCallbacks = new ArrayList<HiveBatchWriter.Callback>();
-    HiveBatchWriter.Callback addPartitionCallback = new AddPartitionCallback(database, table,
+    HiveBatchWriter.Callback addPartitionCallback = new AddPartitionCallback(dbName, tableName,
         values, path);
     closeCallbacks.add(addPartitionCallback);
 

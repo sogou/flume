@@ -1,8 +1,10 @@
 package org.apache.flume.sink.hive.batch.util;
 
+import com.google.common.base.Joiner;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.*;
+import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +18,15 @@ public class HiveUtils {
   private static final Logger LOG = LoggerFactory.getLogger(HiveUtils.class);
 
   private static HiveConf hiveConf = new HiveConf();
+
+  public static HiveMetaStoreClient createHiveMetaStoreClient() throws MetaException {
+    return new HiveMetaStoreClient(hiveConf);
+  }
+
+  public static void closeHiveMetaStoreClient(HiveMetaStoreClient client) {
+    if (client != null)
+      client.close();
+  }
 
   public static void addPartition(HiveMetaStoreClient client,
                                   String dbName, String tableName,
@@ -49,31 +60,79 @@ public class HiveUtils {
     }
   }
 
-  public static void addPartition(String dbName, String tableName,
-                                  List<String> values, String location) throws TException {
-    HiveMetaStoreClient client = null;
-    try {
-      client = new HiveMetaStoreClient(hiveConf);
-      addPartition(client, dbName, tableName, values, location);
-    } finally {
-      if (client != null)
-        client.close();
-    }
-  }
-
   public static List<FieldSchema> getFields(HiveMetaStoreClient client,
                                             String dbName, String tableName) throws TException {
     return client.getFields(dbName, tableName);
   }
 
+  public static Table getTable(HiveMetaStoreClient client,
+                               String dbName, String tableName) throws TException {
+    return client.getTable(dbName, tableName);
+  }
+
+  public static Properties getTableProperties(HiveMetaStoreClient client,
+                                              String dbName, String tableName) throws TException {
+    Properties properties = new Properties();
+
+    Table table = getTable(client, dbName, tableName);
+    SerDeInfo serDeInfo = table.getSd().getSerdeInfo();
+    for (Map.Entry<String, String> entry : serDeInfo.getParameters().entrySet()) {
+      properties.setProperty(entry.getKey(), entry.getValue());
+    }
+
+    List<FieldSchema> fields = HiveUtils.getFields(dbName, tableName);
+    List<String> columnNames = new ArrayList<String>();
+    List<String> columnTypes = new ArrayList<String>();
+    for (FieldSchema field : fields) {
+      columnNames.add(field.getName());
+      columnTypes.add(field.getType());
+    }
+    String columnNameProperty = Joiner.on(",").join(columnNames);
+    String columnTypeProperty = Joiner.on(",").join(columnTypes);
+    properties.setProperty(serdeConstants.LIST_COLUMNS, columnNameProperty);
+    properties.setProperty(serdeConstants.LIST_COLUMN_TYPES, columnTypeProperty);
+
+    return properties;
+  }
+
+  public static void addPartition(String dbName, String tableName,
+                                  List<String> values, String location) throws TException {
+    HiveMetaStoreClient client = null;
+    try {
+      client = createHiveMetaStoreClient();
+      addPartition(client, dbName, tableName, values, location);
+    } finally {
+      closeHiveMetaStoreClient(client);
+    }
+  }
+
   public static List<FieldSchema> getFields(String dbName, String tableName) throws TException {
     HiveMetaStoreClient client = null;
     try {
-      client = new HiveMetaStoreClient(hiveConf);
+      client = createHiveMetaStoreClient();
       return getFields(client, dbName, tableName);
     } finally {
-      if (client != null)
-        client.close();
+      closeHiveMetaStoreClient(client);
+    }
+  }
+
+  public static Table getTable(String dbName, String tableName) throws TException {
+    HiveMetaStoreClient client = null;
+    try {
+      client = createHiveMetaStoreClient();
+      return getTable(client, dbName, tableName);
+    } finally {
+      closeHiveMetaStoreClient(client);
+    }
+  }
+
+  public static Properties getTableProperties(String dbName, String tableName) throws TException {
+    HiveMetaStoreClient client = null;
+    try {
+      client = createHiveMetaStoreClient();
+      return getTableProperties(client, dbName, tableName);
+    } finally {
+      closeHiveMetaStoreClient(client);
     }
   }
 }

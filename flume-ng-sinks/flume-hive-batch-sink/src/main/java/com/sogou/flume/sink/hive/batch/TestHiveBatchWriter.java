@@ -1,9 +1,11 @@
 package com.sogou.flume.sink.hive.batch;
 
 import org.apache.flume.sink.hive.batch.HiveBatchWriter;
-import org.apache.flume.sink.hive.batch.deserializer.AbstractDeserializer;
-import org.apache.flume.sink.hive.batch.deserializer.Deserializer;
+import org.apache.flume.sink.hive.batch.callback.AddPartitionCallback;
+import org.apache.flume.sink.hive.batch.serde.TextDeserializer;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.serde2.SerDeException;
+import org.apache.thrift.TException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -15,36 +17,39 @@ import java.util.Map;
  * Created by Tao Li on 2/16/16.
  */
 public class TestHiveBatchWriter {
-  public static void main(String[] args) throws IOException {
-    Configuration conf = new Configuration();
-    Deserializer deserializer = new MyDeserializer();
-    deserializer.initialize("f0,f1,f2,f3,f4", "string,int,array<string>,map<string,string>,array<struct<pos:int,url:string>>");
+  public static void main(String[] args) throws IOException, SerDeException, TException {
+    String dbName = "custom";
+    String tableName = "helloorc2";
     String logdate = args[0];
+
+    Configuration conf = new Configuration();
+
+    MyDeserializer deserializer = new MyDeserializer();
+    deserializer.initializeByTableName(conf, dbName, tableName);
+
     long currentTimestamp = System.currentTimeMillis();
-    String file = String.format("hdfs://SunshineNameNode2/user/hive/warehouse/litao.db/testorc/logdate=%s/helloorc-%s-%s.orc",
-        logdate, logdate, currentTimestamp);
-    List<HiveBatchWriter.Callback> initCallBacks = new ArrayList<HiveBatchWriter.Callback>();
-    initCallBacks.add(new InitCallback(logdate));
+    String location = String.format("hdfs://SunshineNameNode2/user/hive/warehouse/litao.db/testorc/logdate=%s", logdate);
+    String file = String.format("%s/helloorc-%s-%s.orc", location, logdate, currentTimestamp);
+
+    List<String> values = new ArrayList<String>();
+    values.add(logdate);
     List<HiveBatchWriter.Callback> closeCallBacks = new ArrayList<HiveBatchWriter.Callback>();
-    closeCallBacks.add(new CloseCallback(logdate));
+    closeCallBacks.add(new AddPartitionCallback(dbName, tableName, values, location));
 
-    HiveBatchWriter writer = new HiveBatchWriter(conf, deserializer, file, 5000,
-        initCallBacks, closeCallBacks);
-
+    HiveBatchWriter writer = new HiveBatchWriter(conf, deserializer, file, 5000, null, closeCallBacks);
     for (int i = 0; i < 9; i++) {
       String testLine = String.format("hello%d %d e1%d,e2%d k1=v1%d&k2=v2%d 1%d:url1%d,2%d:url2%d", i, i, i, i, i, i, i, i, i, i, i, i);
       byte[] bytes = testLine.getBytes();
       writer.append(bytes);
     }
-
     writer.close();
   }
 }
 
-class MyDeserializer extends AbstractDeserializer {
+class MyDeserializer extends TextDeserializer {
 
   @Override
-  public List<Object> deserialize(byte[] bytes, List<Object> reuse) {
+  public Object deserialize(byte[] bytes, List<Object> reuse) {
     String line = new String(bytes);
     String[] array = line.split(" ");
 
@@ -81,31 +86,5 @@ class MyDeserializer extends AbstractDeserializer {
     reuse.add(4, f4);
 
     return reuse;
-  }
-}
-
-class InitCallback implements HiveBatchWriter.Callback {
-  private String logdate;
-
-  public InitCallback(String logdate) {
-    this.logdate = logdate;
-  }
-
-  @Override
-  public void run() {
-    System.out.println("InitCallback: " + logdate);
-  }
-}
-
-class CloseCallback implements HiveBatchWriter.Callback {
-  private String logdate;
-
-  public CloseCallback(String logdate) {
-    this.logdate = logdate;
-  }
-
-  @Override
-  public void run() {
-    System.out.println("CloseCallback: " + logdate);
   }
 }
