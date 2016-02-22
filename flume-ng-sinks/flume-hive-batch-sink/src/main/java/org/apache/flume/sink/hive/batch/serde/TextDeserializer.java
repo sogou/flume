@@ -30,7 +30,7 @@ public abstract class TextDeserializer extends AbstractDeserializer {
   public void initializeByTableName(Configuration configuration,
                                     String dbName, String tableName)
       throws TException, SerDeException {
-    Properties tbl = HiveUtils.getTableProperties(dbName, tableName);
+    Properties tbl = HiveUtils.getTableColunmnProperties(dbName, tableName);
     initialize(configuration, tbl);
   }
 

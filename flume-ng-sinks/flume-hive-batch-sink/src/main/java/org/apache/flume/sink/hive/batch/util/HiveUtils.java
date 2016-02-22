@@ -70,6 +70,25 @@ public class HiveUtils {
     return client.getTable(dbName, tableName);
   }
 
+  public static Properties getTableColunmnProperties(HiveMetaStoreClient client,
+                                                     String dbName, String tableName) throws TException {
+    Properties properties = new Properties();
+
+    List<FieldSchema> fields = HiveUtils.getFields(dbName, tableName);
+    List<String> columnNames = new ArrayList<String>();
+    List<String> columnTypes = new ArrayList<String>();
+    for (FieldSchema field : fields) {
+      columnNames.add(field.getName());
+      columnTypes.add(field.getType());
+    }
+    String columnNameProperty = Joiner.on(",").join(columnNames);
+    String columnTypeProperty = Joiner.on(",").join(columnTypes);
+    properties.setProperty(serdeConstants.LIST_COLUMNS, columnNameProperty);
+    properties.setProperty(serdeConstants.LIST_COLUMN_TYPES, columnTypeProperty);
+
+    return properties;
+  }
+
   public static void addPartition(String dbName, String tableName,
                                   List<String> values, String location) throws TException {
     HiveMetaStoreClient client = null;
@@ -96,6 +115,16 @@ public class HiveUtils {
     try {
       client = createHiveMetaStoreClient(hiveConf);
       return getTable(client, dbName, tableName);
+    } finally {
+      closeHiveMetaStoreClient(client);
+    }
+  }
+
+  public static Properties getTableColunmnProperties(String dbName, String tableName) throws TException {
+    HiveMetaStoreClient client = null;
+    try {
+      client = createHiveMetaStoreClient(hiveConf);
+      return getTableColunmnProperties(client, dbName, tableName);
     } finally {
       closeHiveMetaStoreClient(client);
     }
