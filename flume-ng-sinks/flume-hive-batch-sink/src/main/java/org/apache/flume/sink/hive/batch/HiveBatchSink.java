@@ -74,31 +74,35 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   }
 
   private class IdleHiveBatchWriterMonitor implements Runnable {
-    private final long CHECK_INTERVAL = 5;
+    private final long CHECK_INTERVAL = 10;
 
     @Override
     public void run() {
-      while (isRunning) {
-        try {
-          for (Map.Entry<String, HiveBatchWriter> entry : writers.entrySet()) {
-            String path = entry.getKey();
-            HiveBatchWriter writer = entry.getValue();
+      while (isRunning && !Thread.currentThread().isInterrupted()) {
+        for (Map.Entry<String, HiveBatchWriter> entry : writers.entrySet()) {
+          String path = entry.getKey();
+          HiveBatchWriter writer = entry.getValue();
+          if (writer.isIdle()) {
             synchronized (writersLock) {
+              // when enter synchronized block, writer may be not idle, so double check
               if (writer.isIdle()) {
                 try {
                   LOG.info("Closing {}", path);
                   writer.close();
-                  writers.remove(path);
                 } catch (IOException e) {
-                  LOG.warn("Exception while closing " + writer.getFile()
-                      + ". Exception follows.", e);
+                  LOG.warn("Exception while closing " + writer.getFile() + ". Exception follows.", e);
+                } finally {
+                  writers.remove(path);
                 }
               }
             }
           }
+        }
+        try {
           TimeUnit.SECONDS.sleep(CHECK_INTERVAL);
-        } catch (Exception e) {
-          LOG.error("exception occur", e);
+        } catch (InterruptedException e) {
+          LOG.warn("interrupted", e);
+          Thread.currentThread().interrupt();
         }
       }
     }
@@ -195,19 +199,17 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
             timeZone, needRounding, roundUnit, roundValue, useLocalTime);
         String partitionPath = rootPath + DIRECTORY_DELIMITER + realPartition;
         String keyPath = partitionPath + DIRECTORY_DELIMITER + realName;
-        // FIXME fullFileName may not be unique, which will cause write to the same orc file
-        String fullFileName = realName + "." + System.nanoTime() + "." + this.suffix;
 
-        HiveBatchWriter writer;
         synchronized (writersLock) {
-          writer = writers.get(keyPath);
+          HiveBatchWriter writer = writers.get(keyPath);
           if (writer == null) {
+            // FIXME fullFileName may not be unique, which will cause write to the same orc file
+            String fullFileName = realName + "." + System.nanoTime() + "." + this.suffix;
             writer = initializeHiveBatchWriter(partitionPath, fullFileName, realPartition);
             writers.put(keyPath, writer);
           }
+          writer.append(event.getBody());
         }
-
-        writer.append(event.getBody());
       }
       // FIXME data may not flush to orcfile after commit transaction, which will cause data lose
       transaction.commit();
