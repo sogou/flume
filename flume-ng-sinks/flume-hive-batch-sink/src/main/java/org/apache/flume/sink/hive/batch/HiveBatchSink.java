@@ -6,6 +6,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multiset;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.flume.*;
 import org.apache.flume.conf.Configurable;
@@ -229,7 +230,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
         new Predicate<HiveBatchWriter>() {
           @Override
           public boolean apply(@Nullable HiveBatchWriter writer) {
-            return !writer.isIdle();
+            return writer.isIdle();
           }
         });
 
@@ -268,13 +269,9 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
         throw new RuntimeException(e);
       }
     } finally {
-      Maps.transformEntries(closeWriters, new Maps.EntryTransformer<String, HiveBatchWriter, Void>() {
-        @Override
-        public Void transformEntry(@Nullable String path, @Nullable HiveBatchWriter writer) {
-          writers.remove(path);
-          return null;
-        }
-      });
+      for (Map.Entry<String, HiveBatchWriter> entry : closeWriters.entrySet()) {
+        writers.remove(entry.getKey());
+      }
     }
   }
 
