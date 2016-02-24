@@ -23,6 +23,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Created by Tao Li on 2016/2/17.
@@ -51,6 +52,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   private boolean useLocalTime = false;
   private Deserializer deserializer;
 
+  private AtomicLong writerCounter;
   private WriterLinkedHashMap writers;
   private ExecutorService callTimeoutPool;
 
@@ -174,8 +176,8 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
 
         HiveBatchWriter writer = writers.get(keyPath);
         if (writer == null) {
-          // FIXME fullFileName may not be unique, which will cause write to the same orc file
-          String fullFileName = realName + "." + System.nanoTime() + "." + this.suffix;
+          long counter = writerCounter.addAndGet(1);
+          String fullFileName = realName + "." + System.nanoTime() + "." + counter + "." + this.suffix;
           writer = initializeHiveBatchWriter(partitionPath, fullFileName, realPartition);
           writers.put(keyPath, writer);
         }
@@ -308,6 +310,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
 
   @Override
   public synchronized void start() {
+    this.writerCounter = new AtomicLong(0);
     this.writers = new WriterLinkedHashMap(maxOpenFiles);
     String timeoutName = "hive-batch-" + getName() + "-call-runner-%d";
     this.callTimeoutPool = Executors.newFixedThreadPool(threadsPoolSize,
