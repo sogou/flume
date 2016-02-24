@@ -192,6 +192,10 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       } else {
         return Status.READY;
       }
+    } catch (IOException e) {
+      transaction.rollback();
+      LOG.warn("Hive IO error", e);
+      return Status.BACKOFF;
     } catch (Exception e) {
       transaction.rollback();
       LOG.error("process failed", e);
@@ -218,7 +222,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     return new HiveBatchWriter(conf, deserializer, file, idleTimeout, null, closeCallbacks);
   }
 
-  private void closeIdleWriters() throws InterruptedException, ExecutionException, TimeoutException {
+  private void closeIdleWriters() throws IOException, InterruptedException {
     Map<String, HiveBatchWriter> closeWriters = Maps.filterValues(writers,
         new Predicate<HiveBatchWriter>() {
           @Override
@@ -246,6 +250,21 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
 
     try {
       callWithTimeout(callables, callTimeout, callTimeoutPool);
+    } catch (TimeoutException e) {
+      throw new IOException(e);
+    } catch (InterruptedException e) {
+      throw e;
+    } catch (ExecutionException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof IOException) {
+        throw (IOException) cause;
+      } else if (cause instanceof InterruptedException) {
+        throw (InterruptedException) cause;
+      } else if (cause instanceof RuntimeException) {
+        throw (RuntimeException) cause;
+      } else {
+        throw new RuntimeException(e);
+      }
     } finally {
       Maps.transformEntries(closeWriters, new Maps.EntryTransformer<String, HiveBatchWriter, Void>() {
         @Override
