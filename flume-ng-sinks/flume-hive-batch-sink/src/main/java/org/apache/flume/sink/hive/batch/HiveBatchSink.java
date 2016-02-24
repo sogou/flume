@@ -234,6 +234,10 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
           }
         });
 
+    if (closeWriters.size() == 0) {
+      return;
+    }
+
     List<Callable<Void>> callables = Lists.newArrayList(Iterables.transform(closeWriters.entrySet(),
         new Function<Map.Entry<String, HiveBatchWriter>, Callable<Void>>() {
           @Override
