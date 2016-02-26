@@ -6,7 +6,6 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Multiset;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.flume.*;
 import org.apache.flume.conf.Configurable;
@@ -273,8 +272,16 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
         throw new RuntimeException(e);
       }
     } finally {
-      for (Map.Entry<String, HiveBatchWriter> entry : closeWriters.entrySet()) {
-        writers.remove(entry.getKey());
+      List<String> closePaths = Lists.newArrayList(Iterables.transform(closeWriters.entrySet(),
+          new Function<Map.Entry<String, HiveBatchWriter>, String>() {
+            @Override
+            public String apply(@Nullable Map.Entry<String, HiveBatchWriter> entry) {
+              return entry.getKey();
+            }
+          }
+      ));
+      for (String path : closePaths) {
+        writers.remove(path);
       }
     }
   }
