@@ -10,6 +10,8 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.flume.*;
 import org.apache.flume.conf.Configurable;
 import org.apache.flume.formatter.output.BucketPath;
+import org.apache.flume.instrumentation.SinkCounter;
+import org.apache.flume.instrumentation.sogou.TimedSinkCounter;
 import org.apache.flume.sink.AbstractSink;
 import org.apache.flume.sink.hive.batch.callback.AddPartitionCallback;
 import org.apache.flume.sink.hive.batch.util.HiveUtils;
@@ -55,6 +57,9 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   private AtomicLong writerCounter;
   private WriterLinkedHashMap writers;
   private ExecutorService callTimeoutPool;
+  private String timedSinkCounterCategoryKey = "category";
+  private String sinkCounterType = "SinkCounter";
+  private SinkCounter sinkCounter;
 
   private class WriterLinkedHashMap extends LinkedHashMap<String, HiveBatchWriter> {
     private final int maxOpenFiles;
@@ -150,12 +155,24 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       }
     }
     this.useLocalTime = context.getBoolean(Config.HIVE_USE_LOCAL_TIMESTAMP, Config.Default.DEFAULT_USE_LOCAL_TIMESTAMP);
+
+    if (sinkCounter == null) {
+      sinkCounterType = context.getString(Config.HIVE_SINK_COUNTER_TYPE, Config.Default.DEFAULT_SINK_COUNTER_TYPE);
+      if (sinkCounterType.equals("TimedSinkCounter")) {
+        sinkCounter = new TimedSinkCounter(getName());
+        timedSinkCounterCategoryKey = context.getString("timedSinkCounterCategoryKey", "category");
+      } else {
+        sinkCounter = new SinkCounter(getName());
+      }
+    }
   }
 
   @Override
   public Status process() throws EventDeliveryException {
     Channel channel = getChannel();
     Transaction transaction = channel.getTransaction();
+    // TODO no need to store all the events content in array list, which will increase memory usage
+    List<Event> events = new ArrayList<Event>();
     transaction.begin();
     try {
       int txnEventCount;
@@ -182,6 +199,15 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
           writers.put(keyPath, writer);
         }
         writer.append(event.getBody());
+        events.add(event);
+      }
+
+      if (txnEventCount == 0) {
+        sinkCounter.incrementBatchEmptyCount();
+      } else if (txnEventCount == batchSize) {
+        sinkCounter.incrementBatchCompleteCount();
+      } else {
+        sinkCounter.incrementBatchUnderflowCount();
       }
 
       closeIdleWriters();
@@ -192,6 +218,11 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       if (txnEventCount < 1) {
         return Status.BACKOFF;
       } else {
+        sinkCounter.addToEventDrainSuccessCount(txnEventCount);
+        if (sinkCounterType.equals("TimedSinkCounter")) {
+          ((TimedSinkCounter) sinkCounter).addToEventDrainSuccessCountInFiveMinMap(txnEventCount);
+          ((TimedSinkCounter) sinkCounter).addToCategoryEventDrainSuccessCountInFiveMinMap(events, timedSinkCounterCategoryKey);
+        }
         return Status.READY;
       }
     } catch (IOException e) {
@@ -323,6 +354,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     String timeoutName = "hive-batch-" + getName() + "-call-runner-%d";
     this.callTimeoutPool = Executors.newFixedThreadPool(threadsPoolSize,
         new ThreadFactoryBuilder().setNameFormat(timeoutName).build());
+    sinkCounter.start();
     super.start();
   }
 
@@ -339,6 +371,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     }
     writers.clear();
     writers = null;
+    sinkCounter.stop();
     super.stop();
   }
 

@@ -1,8 +1,5 @@
 package org.apache.flume.sink.hive.batch;
 
-import java.util.HashMap;
-import java.util.Map;
-
 /**
  * Created by Tao Li on 2016/2/17.
  */
@@ -25,6 +22,7 @@ public class Config {
   public static final String HIVE_ROUND_UNIT = "hive.roundUnit";
   public static final String HIVE_ROUND_VALUE = "hive.roundValue";
   public static final String HIVE_USE_LOCAL_TIMESTAMP = "hive.useLocalTimeStamp";
+  public static final String HIVE_SINK_COUNTER_TYPE = "hive.sinkCounterType";
 
   public static class Default {
     public static final String DEFAULT_DATABASE = "default";
@@ -40,5 +38,6 @@ public class Config {
     public static final String DEFAULT_ROUND_UNIT = "second";
     public static final int DEFAULT_ROUND_VALUE = 1;
     public static final boolean DEFAULT_USE_LOCAL_TIMESTAMP = false;
+    public static final String DEFAULT_SINK_COUNTER_TYPE = "SinkCounter";
   }
 }
