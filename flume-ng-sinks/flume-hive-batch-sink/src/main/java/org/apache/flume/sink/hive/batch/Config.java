@@ -23,6 +23,9 @@ public class Config {
   public static final String HIVE_ROUND_VALUE = "hive.roundValue";
   public static final String HIVE_USE_LOCAL_TIMESTAMP = "hive.useLocalTimeStamp";
   public static final String HIVE_SINK_COUNTER_TYPE = "hive.sinkCounterType";
+  public static final String Hive_ZOOKEEPER_CONNECT = "hive.zookeeperConnect";
+  public static final String HIVE_ZOOKEEPER_SESSION_TIMEOUT = "hive.zookeeperSessionTimeout";
+  public static final String HIVE_ZOOKEEPER_SERVER_NAME = "hive.zookeeperServerName";
 
   public static class Default {
     public static final String DEFAULT_DATABASE = "default";
@@ -39,5 +42,7 @@ public class Config {
     public static final int DEFAULT_ROUND_VALUE = 1;
     public static final boolean DEFAULT_USE_LOCAL_TIMESTAMP = false;
     public static final String DEFAULT_SINK_COUNTER_TYPE = "SinkCounter";
+    public static final String DEFAULT_ZOOKEEPER_CONNECT = null;
+    public static final int DEFAULT_ZOOKEEPER_SESSION_TIMEOUT = 5000;
   }
 }

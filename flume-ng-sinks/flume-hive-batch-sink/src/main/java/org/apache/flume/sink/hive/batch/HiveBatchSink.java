@@ -15,6 +15,8 @@ import org.apache.flume.instrumentation.sogou.TimedSinkCounter;
 import org.apache.flume.sink.AbstractSink;
 import org.apache.flume.sink.hive.batch.callback.AddPartitionCallback;
 import org.apache.flume.sink.hive.batch.util.HiveUtils;
+import org.apache.flume.sink.hive.batch.zk.ZKService;
+import org.apache.flume.sink.hive.batch.zk.ZKServiceException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.hive.serde2.SerDeException;
@@ -60,6 +62,11 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   private String timedSinkCounterCategoryKey = "category";
   private String sinkCounterType = "SinkCounter";
   private SinkCounter sinkCounter;
+
+  private String zookeeperConnect;
+  private int zookeeperSessionTimeout;
+  private String zookeeperServerName;
+  private ZKService zkService = null;
 
   private class WriterLinkedHashMap extends LinkedHashMap<String, HiveBatchWriter> {
     private final int maxOpenFiles;
@@ -164,6 +171,13 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       } else {
         sinkCounter = new SinkCounter(getName());
       }
+    }
+
+    this.zookeeperConnect = context.getString(Config.Hive_ZOOKEEPER_CONNECT, Config.Default.DEFAULT_ZOOKEEPER_CONNECT);
+    this.zookeeperSessionTimeout = context.getInteger(Config.HIVE_ZOOKEEPER_SESSION_TIMEOUT, Config.Default.DEFAULT_ZOOKEEPER_SESSION_TIMEOUT);
+    if (this.zookeeperConnect != null) {
+      this.zookeeperServerName = Preconditions.checkNotNull(context.getString(Config.HIVE_ZOOKEEPER_SERVER_NAME),
+          Config.HIVE_ZOOKEEPER_SERVER_NAME + " is required");
     }
   }
 
@@ -355,6 +369,15 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     this.callTimeoutPool = Executors.newFixedThreadPool(threadsPoolSize,
         new ThreadFactoryBuilder().setNameFormat(timeoutName).build());
     sinkCounter.start();
+    if (this.zookeeperConnect != null) {
+      this.zkService = ZKService.getInstance();
+      this.zkService.init(this.zookeeperConnect, this.zookeeperServerName, this.zookeeperSessionTimeout);
+      try {
+        this.zkService.start();
+      } catch (ZKServiceException e) {
+        LOG.error("Fail to start ZKService", e);
+      }
+    }
     super.start();
   }
 
@@ -372,6 +395,13 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     writers.clear();
     writers = null;
     sinkCounter.stop();
+    if (this.zkService != null) {
+      try {
+        this.zkService.stop();
+      } catch (ZKServiceException e) {
+        LOG.error("Fail to stop ZKService", e);
+      }
+    }
     super.stop();
   }
 
