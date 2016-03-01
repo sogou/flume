@@ -65,7 +65,8 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
 
   private String zookeeperConnect;
   private int zookeeperSessionTimeout;
-  private String zookeeperServerName;
+  private String zookeeperServiceName;
+  private String zookeeperHostName;
   private ZKService zkService = null;
 
   private class WriterLinkedHashMap extends LinkedHashMap<String, HiveBatchWriter> {
@@ -176,8 +177,10 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     this.zookeeperConnect = context.getString(Config.Hive_ZOOKEEPER_CONNECT, Config.Default.DEFAULT_ZOOKEEPER_CONNECT);
     this.zookeeperSessionTimeout = context.getInteger(Config.HIVE_ZOOKEEPER_SESSION_TIMEOUT, Config.Default.DEFAULT_ZOOKEEPER_SESSION_TIMEOUT);
     if (this.zookeeperConnect != null) {
-      this.zookeeperServerName = Preconditions.checkNotNull(context.getString(Config.HIVE_ZOOKEEPER_SERVER_NAME),
-          Config.HIVE_ZOOKEEPER_SERVER_NAME + " is required");
+      this.zookeeperServiceName = Preconditions.checkNotNull(context.getString(Config.HIVE_ZOOKEEPER_SERVICE_NAME),
+          Config.HIVE_ZOOKEEPER_SERVICE_NAME + " is required");
+      this.zookeeperHostName = Preconditions.checkNotNull(context.getString(Config.HIVE_ZOOKEEPER_HOST_NAME),
+          Config.HIVE_ZOOKEEPER_HOST_NAME + " is required");
     }
   }
 
@@ -370,8 +373,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
         new ThreadFactoryBuilder().setNameFormat(timeoutName).build());
     sinkCounter.start();
     if (this.zookeeperConnect != null) {
-      this.zkService = ZKService.getInstance();
-      this.zkService.init(this.zookeeperConnect, this.zookeeperServerName, this.zookeeperSessionTimeout);
+      this.zkService = new ZKService(this.zookeeperConnect, this.zookeeperServiceName, this.zookeeperHostName, this.zookeeperSessionTimeout);
       try {
         this.zkService.start();
       } catch (ZKServiceException e) {

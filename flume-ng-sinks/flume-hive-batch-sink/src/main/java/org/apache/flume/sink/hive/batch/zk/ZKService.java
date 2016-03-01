@@ -17,13 +17,12 @@ import java.util.concurrent.TimeUnit;
  * Created by Tao Li on 2/5/15.
  */
 public class ZKService {
-  private static Logger LOG = LoggerFactory.getLogger(ZKService.class);
+  private Logger LOG = LoggerFactory.getLogger(ZKService.class);
 
   private final static String ONLINE_PATH = "/online";
 
-  private static ZKService instance = null;
-
   private String zkURL;
+  private String serviceName;
   private int sessionTimeout = 5000;
   private ZKClientWrapper client = null;
 
@@ -39,28 +38,11 @@ public class ZKService {
 
   private BlockingQueue<ZKServiceOnStopCallBack> callBacks = new LinkedBlockingQueue<ZKServiceOnStopCallBack>();
 
-  private ZKService() {
-  }
-
-  public static ZKService getInstance() {
-    if (instance == null) {
-      synchronized (ZKService.class) {
-        if (instance == null) {
-          instance = new ZKService();
-        }
-      }
-    }
-    return instance;
-  }
-
-  public void init(String zkURL, String serverName) {
-    init(zkURL, serverName, this.sessionTimeout);
-  }
-
-  public void init(String zkURL, String serverName, int sessionTimeout) {
+  public ZKService(String zkURL, String serviceName, String hostName, int sessionTimeout) {
     this.zkURL = zkURL;
+    this.serviceName = serviceName;
     this.sessionTimeout = sessionTimeout;
-    this.currentServerInfo.serverName = serverName;
+    this.currentServerInfo.hostName = hostName;
   }
 
   private class ZKClientWrapper {
@@ -95,7 +77,7 @@ public class ZKService {
         if (event.getState() == Event.KeeperState.SyncConnected) {
           connectedSignal.countDown();
         } else if (event.getState() == Event.KeeperState.Expired && isRunning()) {
-          synchronized (ZKService.class) {
+          synchronized (this) {
             if (isRunning()) {
               // Double check
               // if ZKService is STOPPED, no need to enter synchronized block
@@ -119,7 +101,7 @@ public class ZKService {
       Thread.currentThread().setName(THREAD_NAME);
 
       while (isRunning()) {
-        synchronized (ZKService.class) {
+        synchronized (this) {
           if (isRunning() && state == ZKState.EXPIRED) {
             LOG.info("ZooKeeper is expired.");
             try {
@@ -159,7 +141,7 @@ public class ZKService {
   }
 
   public class ServerInfo {
-    String serverName;
+    String hostName;
     long sessionId;
     String sequenceId;
 
@@ -167,24 +149,24 @@ public class ZKService {
 
     }
 
-    public ServerInfo(String serverName, long sessionId, String sequenceId) {
-      this.serverName = serverName;
+    public ServerInfo(String hostName, long sessionId, String sequenceId) {
+      this.hostName = hostName;
       this.sessionId = sessionId;
       this.sequenceId = sequenceId;
     }
 
     public String getZNodePath() {
-      return String.format("%s_%s_%s", serverName, sessionId, sequenceId);
+      return String.format("%s_%s_%s", hostName, sessionId, sequenceId);
     }
 
     public String getFullZnodePath() {
-      return ONLINE_PATH + "/" + getZNodePath();
+      return getRootPath() + "/" + getZNodePath();
     }
 
     @Override
     public String toString() {
       return "ServerInfo{" +
-          "serverName='" + serverName + '\'' +
+          "hostName='" + hostName + '\'' +
           ", sessionId='" + sessionId + '\'' +
           ", sequenceId='" + sequenceId + '\'' +
           '}';
@@ -196,7 +178,7 @@ public class ZKService {
   }
 
   public void start() throws ZKServiceException {
-    synchronized (ZKService.class) {
+    synchronized (this) {
       if (isRunning()) {
         LOG.info("ZKService is already running.");
         return;
@@ -223,14 +205,15 @@ public class ZKService {
   }
 
   private void prepareEnv() throws KeeperException, InterruptedException {
-    create(ONLINE_PATH, false);
+    create("/" + this.serviceName, false);
+    create(getRootPath(), false);
   }
 
   private void online() throws KeeperException, InterruptedException, IOException, ZKServiceException {
     client = new ZKClientWrapper();
     prepareEnv();
     currentServerInfo.sessionId = client.zk.getSessionId();
-    String zNodeBasePath = String.format("%s/%s_%s_", ONLINE_PATH, currentServerInfo.serverName, currentServerInfo.sessionId);
+    String zNodeBasePath = String.format("%s/%s_%s_", getRootPath(), currentServerInfo.hostName, currentServerInfo.sessionId);
     String path = client.zk.create(zNodeBasePath, null, ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL_SEQUENTIAL);
     String[] info = path.split("_");
     if (info.length == 3) {
@@ -238,13 +221,13 @@ public class ZKService {
     }
     client.zk.exists(currentServerInfo.getFullZnodePath(), true);
 
-    LOG.info("Server {} online.", currentServerInfo.serverName);
+    LOG.info("Server {} online.", currentServerInfo.hostName);
   }
 
   private List<ServerInfo> getAllServerInfos() throws KeeperException, InterruptedException {
     // FIXME need to call sync() to get latest view
     List<ServerInfo> serverInfos = new ArrayList<ServerInfo>();
-    for (String path : client.zk.getChildren(ONLINE_PATH, false)) {
+    for (String path : client.zk.getChildren(getRootPath(), false)) {
       String[] info = path.split("_");
       if (info.length == 3) {
         serverInfos.add(new ServerInfo(info[0], Long.parseLong(info[1]), info[2]));
@@ -275,7 +258,7 @@ public class ZKService {
   }
 
   public void stop() throws ZKServiceException {
-    synchronized (ZKService.class) {
+    synchronized (this) {
       state = ZKState.STOPPED;
       try {
         offline();
@@ -315,6 +298,10 @@ public class ZKService {
   private void offline() throws InterruptedException {
     if (client != null)
       client.close();
-    LOG.info("Server {} offline.", currentServerInfo.serverName);
+    LOG.info("Server {} offline.", currentServerInfo.hostName);
+  }
+
+  private String getRootPath() {
+    return "/" + this.serviceName + ONLINE_PATH;
   }
 }
