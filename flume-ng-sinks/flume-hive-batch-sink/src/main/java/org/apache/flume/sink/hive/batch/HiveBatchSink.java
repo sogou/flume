@@ -66,7 +66,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   private String zookeeperConnect;
   private int zookeeperSessionTimeout;
   private String zookeeperServiceName;
-  private String zookeeperHostName;
+  private String hostName;
   private ZKService zkService = null;
 
   private class WriterLinkedHashMap extends LinkedHashMap<String, HiveBatchWriter> {
@@ -177,10 +177,12 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     this.zookeeperConnect = context.getString(Config.Hive_ZOOKEEPER_CONNECT, Config.Default.DEFAULT_ZOOKEEPER_CONNECT);
     this.zookeeperSessionTimeout = context.getInteger(Config.HIVE_ZOOKEEPER_SESSION_TIMEOUT, Config.Default.DEFAULT_ZOOKEEPER_SESSION_TIMEOUT);
     if (this.zookeeperConnect != null) {
-      this.zookeeperServiceName = Preconditions.checkNotNull(context.getString(Config.HIVE_ZOOKEEPER_SERVICE_NAME),
-          Config.HIVE_ZOOKEEPER_SERVICE_NAME + " is required");
-      this.zookeeperHostName = Preconditions.checkNotNull(context.getString(Config.HIVE_ZOOKEEPER_HOST_NAME),
-          Config.HIVE_ZOOKEEPER_HOST_NAME + " is required");
+      this.zookeeperServiceName = context.getString(Config.HIVE_ZOOKEEPER_SERVICE_NAME);
+      if (this.zookeeperServiceName == null) {
+        this.zookeeperServiceName = this.dbName + "." + this.tableName;
+      }
+      this.hostName = Preconditions.checkNotNull(context.getString(Config.HIVE_HOST_NAME),
+          Config.HIVE_HOST_NAME + " is required");
     }
   }
 
@@ -373,7 +375,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
         new ThreadFactoryBuilder().setNameFormat(timeoutName).build());
     sinkCounter.start();
     if (this.zookeeperConnect != null) {
-      this.zkService = new ZKService(this.zookeeperConnect, this.zookeeperServiceName, this.zookeeperHostName, this.zookeeperSessionTimeout);
+      this.zkService = new ZKService(this.zookeeperConnect, this.zookeeperServiceName, this.hostName, this.zookeeperSessionTimeout);
       try {
         this.zkService.start();
       } catch (ZKServiceException e) {
