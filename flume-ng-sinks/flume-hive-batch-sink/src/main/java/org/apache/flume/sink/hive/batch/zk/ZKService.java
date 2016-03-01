@@ -244,12 +244,12 @@ public class ZKService {
   private List<ServerInfo> getAllServerInfos() throws KeeperException, InterruptedException {
     // FIXME need to call sync() to get latest view
     List<ServerInfo> serverInfos = new ArrayList<ServerInfo>();
-    for (String server : client.zk.getChildren(ONLINE_PATH, false)) {
-      String[] info = server.split("_");
+    for (String path : client.zk.getChildren(ONLINE_PATH, false)) {
+      String[] info = path.split("_");
       if (info.length == 3) {
         serverInfos.add(new ServerInfo(info[0], Long.parseLong(info[1]), info[2]));
       } else {
-        LOG.error("Invalid server znode path: " + ONLINE_PATH + "/" + server);
+        LOG.error("Invalid server znode path: " + path);
       }
     }
     return serverInfos;
