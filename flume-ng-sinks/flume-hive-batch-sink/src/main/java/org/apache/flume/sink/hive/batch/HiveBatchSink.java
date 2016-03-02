@@ -15,6 +15,9 @@ import org.apache.flume.instrumentation.sogou.TimedSinkCounter;
 import org.apache.flume.sink.AbstractSink;
 import org.apache.flume.sink.hive.batch.callback.AddPartitionCallback;
 import org.apache.flume.sink.hive.batch.callback.UpdateSinkDetailCallback;
+import org.apache.flume.sink.hive.batch.dao.HiveSinkDetailDao;
+import org.apache.flume.sink.hive.batch.util.CommonUtils;
+import org.apache.flume.sink.hive.batch.util.DTEUtils;
 import org.apache.flume.sink.hive.batch.util.HiveUtils;
 import org.apache.flume.sink.hive.batch.zk.ZKService;
 import org.apache.flume.sink.hive.batch.zk.ZKServiceException;
@@ -26,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -70,6 +74,10 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   private String hostName;
   private ZKService zkService = null;
   private String dbConnectURL;
+  private String dteUpdateLogDetailURL;
+  private int dteLogId;
+  private LeaderThread leaderThread;
+  private volatile boolean isRunning = false;
 
   private class WriterLinkedHashMap extends LinkedHashMap<String, HiveBatchWriter> {
     private final int maxOpenFiles;
@@ -108,6 +116,56 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       thread.setName(name);
       thread.setDaemon(true);
       return thread;
+    }
+  }
+
+  private class LeaderThread implements Runnable {
+    private final long CHECK_INTERVAL = 30;
+
+    @Override
+    public void run() {
+      while (isRunning && !Thread.currentThread().isInterrupted()) {
+        try {
+          ZKService.ServerInfo leader = zkService.getLeader();
+          if (leader != null && leader.getHostName().equals(hostName)) {
+            // do some leader job
+            int onlineServerNum = zkService.getAllServerInfos().size();
+            HiveSinkDetailDao dao = new HiveSinkDetailDao(dbConnectURL, zookeeperServiceName);
+            List<String> logdateList = null;
+            try {
+              dao.connect();
+              logdateList = dao.getFinishedLogdateList(onlineServerNum);
+              if (logdateList.size() > 0) {
+                dao.updateCheckedState(logdateList);
+              }
+            } catch (SQLException e) {
+              LOG.error(CommonUtils.getStackTraceStr(e));
+            } finally {
+              try {
+                dao.close();
+              } catch (SQLException e) {
+                LOG.error(CommonUtils.getStackTraceStr(e));
+              }
+            }
+            if (logdateList != null && logdateList.size() > 0) {
+              // TODO DTE should have logDetail batch update API for better performance
+              for (String logdate : logdateList) {
+                DTEUtils.updateLogDetail(dteUpdateLogDetailURL, dteLogId, logdate);
+              }
+              LOG.info("Update DTE LogDetail, logid: " + dteLogId + ", logdateList: " + logdateList);
+            }
+          }
+        } catch (Exception e) {
+          LOG.error(CommonUtils.getStackTraceStr(e));
+        }
+
+        try {
+          TimeUnit.SECONDS.sleep(CHECK_INTERVAL);
+        } catch (InterruptedException e) {
+          LOG.warn("interrupted", e);
+          Thread.currentThread().interrupt();
+        }
+      }
     }
   }
 
@@ -186,6 +244,12 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       this.hostName = Preconditions.checkNotNull(context.getString(Config.HIVE_HOST_NAME),
           Config.HIVE_HOST_NAME + " is required");
       this.dbConnectURL = context.getString(Config.HIVE_DB_CONNECT_URL, Config.Default.DEFAULT_DB_CONNECT_URL);
+      if (this.dbConnectURL != null) {
+        this.dteUpdateLogDetailURL = Preconditions.checkNotNull(context.getString(Config.HIVE_DTE_UPDATE_LOGDETAIL_URL),
+            Config.HIVE_DTE_UPDATE_LOGDETAIL_URL + " is required");
+        this.dteLogId = Preconditions.checkNotNull(context.getInteger(Config.HIVE_DTE_LOGID),
+            Config.HIVE_DTE_LOGID + " is required");
+      }
     }
   }
 
@@ -383,6 +447,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
 
   @Override
   public synchronized void start() {
+    this.isRunning = true;
     this.writerCounter = new AtomicLong(0);
     this.writers = new WriterLinkedHashMap(maxOpenFiles);
     String timeoutName = "hive-batch-" + getName() + "-call-runner-%d";
@@ -395,6 +460,11 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
         this.zkService.start();
       } catch (ZKServiceException e) {
         LOG.error("Fail to start ZKService", e);
+      }
+      if (this.dbConnectURL != null) {
+        // To Update DTE LogDetail
+        this.leaderThread = new LeaderThread();
+        new DaemonThreadFactory("HiveBatchSinkLeaderThread").newThread(this.leaderThread).start();
       }
     }
     super.start();
@@ -421,6 +491,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
         LOG.error("Fail to stop ZKService", e);
       }
     }
+    this.isRunning = false;
     super.stop();
   }
 

@@ -28,6 +28,8 @@ public class Config {
   public static final String HIVE_ZOOKEEPER_SERVICE_NAME = "hive.zookeeperServiceName";
   public static final String HIVE_HOST_NAME = "hive.hostName";
   public static final String HIVE_DB_CONNECT_URL = "hive.dbConnectURL";
+  public static final String HIVE_DTE_UPDATE_LOGDETAIL_URL = "hive.dte.updateLogDetailURL";
+  public static final String HIVE_DTE_LOGID = "hive.dte.logid";
 
   public static class Default {
     public static final String DEFAULT_DATABASE = "default";

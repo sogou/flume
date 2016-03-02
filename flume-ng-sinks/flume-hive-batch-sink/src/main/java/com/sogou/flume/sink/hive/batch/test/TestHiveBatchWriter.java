@@ -1,4 +1,4 @@
-package com.sogou.flume.sink.hive.batch;
+package com.sogou.flume.sink.hive.batch.test;
 
 import org.apache.flume.sink.hive.batch.HiveBatchWriter;
 import org.apache.flume.sink.hive.batch.callback.AddPartitionCallback;

@@ -155,6 +155,10 @@ public class ZKService {
       this.sequenceId = sequenceId;
     }
 
+    public String getHostName() {
+      return hostName;
+    }
+
     public String getZNodePath() {
       return String.format("%s_%s_%s", hostName, sessionId, sequenceId);
     }
@@ -224,7 +228,7 @@ public class ZKService {
     LOG.info("Server {} online.", currentServerInfo.hostName);
   }
 
-  private List<ServerInfo> getAllServerInfos() throws KeeperException, InterruptedException {
+  public List<ServerInfo> getAllServerInfos() throws KeeperException, InterruptedException {
     // FIXME need to call sync() to get latest view
     List<ServerInfo> serverInfos = new ArrayList<ServerInfo>();
     for (String path : client.zk.getChildren(getRootPath(), false)) {
