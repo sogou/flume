@@ -27,6 +27,7 @@ public class Config {
   public static final String HIVE_ZOOKEEPER_SESSION_TIMEOUT = "hive.zookeeperSessionTimeout";
   public static final String HIVE_ZOOKEEPER_SERVICE_NAME = "hive.zookeeperServiceName";
   public static final String HIVE_HOST_NAME = "hive.hostName";
+  public static final String HIVE_DB_CONNECT_URL = "hive.dbConnectURL";
 
   public static class Default {
     public static final String DEFAULT_DATABASE = "default";
@@ -45,5 +46,6 @@ public class Config {
     public static final String DEFAULT_SINK_COUNTER_TYPE = "SinkCounter";
     public static final String DEFAULT_ZOOKEEPER_CONNECT = null;
     public static final int DEFAULT_ZOOKEEPER_SESSION_TIMEOUT = 5000;
+    public static final String DEFAULT_DB_CONNECT_URL = null;
   }
 }

@@ -14,6 +14,7 @@ import org.apache.flume.instrumentation.SinkCounter;
 import org.apache.flume.instrumentation.sogou.TimedSinkCounter;
 import org.apache.flume.sink.AbstractSink;
 import org.apache.flume.sink.hive.batch.callback.AddPartitionCallback;
+import org.apache.flume.sink.hive.batch.callback.UpdateSinkDetailCallback;
 import org.apache.flume.sink.hive.batch.util.HiveUtils;
 import org.apache.flume.sink.hive.batch.zk.ZKService;
 import org.apache.flume.sink.hive.batch.zk.ZKServiceException;
@@ -68,6 +69,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   private String zookeeperServiceName;
   private String hostName;
   private ZKService zkService = null;
+  private String dbConnectURL;
 
   private class WriterLinkedHashMap extends LinkedHashMap<String, HiveBatchWriter> {
     private final int maxOpenFiles;
@@ -183,6 +185,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       }
       this.hostName = Preconditions.checkNotNull(context.getString(Config.HIVE_HOST_NAME),
           Config.HIVE_HOST_NAME + " is required");
+      this.dbConnectURL = context.getString(Config.HIVE_DB_CONNECT_URL, Config.Default.DEFAULT_DB_CONNECT_URL);
     }
   }
 
@@ -270,6 +273,18 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     HiveBatchWriter.Callback addPartitionCallback = new AddPartitionCallback(dbName, tableName,
         values, path);
     closeCallbacks.add(addPartitionCallback);
+
+    final String LOGDATE_FLAG = "logdate=";
+    if (this.dbConnectURL != null && partition.contains(LOGDATE_FLAG)) {
+      String logdate = partition.substring(partition.indexOf(LOGDATE_FLAG) + LOGDATE_FLAG.length());
+      int i = logdate.indexOf("/");
+      if (i > 0) {
+        logdate = logdate.substring(0, i);
+      }
+      HiveBatchWriter.Callback updateSinkDetailCallback = new UpdateSinkDetailCallback(
+          this.dbConnectURL, this.zookeeperServiceName, logdate, this.hostName, this.sinkCounter);
+      closeCallbacks.add(updateSinkDetailCallback);
+    }
 
     return new HiveBatchWriter(conf, deserializer, file, idleTimeout, null, closeCallbacks);
   }

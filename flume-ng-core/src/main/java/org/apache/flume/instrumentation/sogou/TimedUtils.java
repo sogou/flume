@@ -155,5 +155,13 @@ public class TimedUtils {
       this.timestamp = timestamp;
       return this.count;
     }
+
+    public long getCount() {
+      return count;
+    }
+
+    public long getTimestamp() {
+      return timestamp;
+    }
   }
 }
