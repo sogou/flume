@@ -2,16 +2,13 @@ package com.sogou.flume.sink.hive.batch.test;
 
 import org.apache.flume.sink.hive.batch.HiveBatchWriter;
 import org.apache.flume.sink.hive.batch.callback.AddPartitionCallback;
-import org.apache.flume.sink.hive.batch.serde.TextDeserializer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.thrift.TException;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Created by Tao Li on 2/16/16.
@@ -36,7 +33,8 @@ public class TestHiveBatchWriter {
     List<HiveBatchWriter.Callback> closeCallBacks = new ArrayList<HiveBatchWriter.Callback>();
     closeCallBacks.add(new AddPartitionCallback(dbName, tableName, values, location));
 
-    HiveBatchWriter writer = new HiveBatchWriter(conf, deserializer, file, 5000, null, closeCallBacks);
+    HiveBatchWriter writer = new HiveBatchWriter(conf, deserializer, file);
+    writer.setCloseCallbacks(closeCallBacks);
     for (int i = 0; i < 9; i++) {
       String testLine = String.format("hello%d %d e1%d,e2%d k1=v1%d&k2=v2%d 1%d:url1%d,2%d:url2%d", i, i, i, i, i, i, i, i, i, i, i, i);
       byte[] bytes = testLine.getBytes();

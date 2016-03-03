@@ -129,4 +129,25 @@ public class HiveUtils {
       closeHiveMetaStoreClient(client);
     }
   }
+
+  public static String getPartitionValue(String partition, String key) {
+    final String LOGDATE_FLAG = key + "=";
+    String value = null;
+    if (partition.contains(LOGDATE_FLAG)) {
+      value = partition.substring(partition.indexOf(LOGDATE_FLAG) + LOGDATE_FLAG.length());
+      int i = value.indexOf("/");
+      if (i > 0) {
+        value = value.substring(0, i);
+      }
+    }
+    return value;
+  }
+
+  public static List<String> getPartitionValues(String partition) {
+    List<String> values = new ArrayList<String>();
+    for (String part : partition.split("/")) {
+      values.add(part.split("=")[1]);
+    }
+    return values;
+  }
 }

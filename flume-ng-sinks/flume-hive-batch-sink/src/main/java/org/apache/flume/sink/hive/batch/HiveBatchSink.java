@@ -74,8 +74,9 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   private String hostName;
   private ZKService zkService = null;
   private String dbConnectURL;
-  private String dteUpdateLogDetailURL;
-  private int dteLogId;
+  private String updateLogDetailURL;
+  private int logId;
+  private String logdateFormat;
   private LeaderThread leaderThread;
   private volatile boolean isRunning = false;
 
@@ -150,9 +151,9 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
             if (logdateList != null && logdateList.size() > 0) {
               // TODO DTE should have logDetail batch update API for better performance
               for (String logdate : logdateList) {
-                DTEUtils.updateLogDetail(dteUpdateLogDetailURL, dteLogId, logdate);
+                DTEUtils.updateLogDetail(updateLogDetailURL, logId, logdate);
               }
-              LOG.info("Update DTE LogDetail, logid: " + dteLogId + ", logdateList: " + logdateList);
+              LOG.info("Update DTE LogDetail, logid: " + logId + ", logdateList: " + logdateList);
             }
           }
         } catch (Exception e) {
@@ -245,10 +246,11 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
           Config.HIVE_HOST_NAME + " is required");
       this.dbConnectURL = context.getString(Config.HIVE_DB_CONNECT_URL, Config.Default.DEFAULT_DB_CONNECT_URL);
       if (this.dbConnectURL != null) {
-        this.dteUpdateLogDetailURL = Preconditions.checkNotNull(context.getString(Config.HIVE_DTE_UPDATE_LOGDETAIL_URL),
+        this.updateLogDetailURL = Preconditions.checkNotNull(context.getString(Config.HIVE_DTE_UPDATE_LOGDETAIL_URL),
             Config.HIVE_DTE_UPDATE_LOGDETAIL_URL + " is required");
-        this.dteLogId = Preconditions.checkNotNull(context.getInteger(Config.HIVE_DTE_LOGID),
+        this.logId = Preconditions.checkNotNull(context.getInteger(Config.HIVE_DTE_LOGID),
             Config.HIVE_DTE_LOGID + " is required");
+        this.logdateFormat = context.getString(Config.HIVE_DTE_LOGDATE_FORMAT, Config.Default.DEFAULT_DTE_LOGDATE_FORMAT);
       }
     }
   }
@@ -327,30 +329,27 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   private HiveBatchWriter initializeHiveBatchWriter(String path, String fileName, String partition)
       throws IOException, SerDeException {
     String file = path + DIRECTORY_DELIMITER + fileName;
-
-    // TODO callbacks should be configurable not hard code
-    List<String> values = new ArrayList<String>();
-    for (String part : partition.split("/")) {
-      values.add(part.split("=")[1]);
-    }
+    String logdate = HiveUtils.getPartitionValue(partition, "logdate");
+    List<String> values = HiveUtils.getPartitionValues(partition);
     List<HiveBatchWriter.Callback> closeCallbacks = new ArrayList<HiveBatchWriter.Callback>();
+
     HiveBatchWriter.Callback addPartitionCallback = new AddPartitionCallback(dbName, tableName,
         values, path);
     closeCallbacks.add(addPartitionCallback);
 
-    final String LOGDATE_FLAG = "logdate=";
-    if (this.dbConnectURL != null && partition.contains(LOGDATE_FLAG)) {
-      String logdate = partition.substring(partition.indexOf(LOGDATE_FLAG) + LOGDATE_FLAG.length());
-      int i = logdate.indexOf("/");
-      if (i > 0) {
-        logdate = logdate.substring(0, i);
-      }
+    if (this.dbConnectURL != null && logdate != null) {
       HiveBatchWriter.Callback updateSinkDetailCallback = new UpdateSinkDetailCallback(
           this.dbConnectURL, this.zookeeperServiceName, logdate, this.hostName, this.sinkCounter);
       closeCallbacks.add(updateSinkDetailCallback);
     }
 
-    return new HiveBatchWriter(conf, deserializer, file, idleTimeout, null, closeCallbacks);
+    HiveBatchWriter writer = new HiveBatchWriter(conf, deserializer, file);
+    writer.setIdleTimeout(idleTimeout);
+    writer.setCloseCallbacks(closeCallbacks);
+    writer.setLogdate(logdate);
+    writer.setLogdateFormat(logdateFormat);
+
+    return writer;
   }
 
   private void closeIdleWriters() throws IOException, InterruptedException {

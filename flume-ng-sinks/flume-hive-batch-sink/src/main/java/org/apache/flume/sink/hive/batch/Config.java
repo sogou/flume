@@ -30,6 +30,7 @@ public class Config {
   public static final String HIVE_DB_CONNECT_URL = "hive.dbConnectURL";
   public static final String HIVE_DTE_UPDATE_LOGDETAIL_URL = "hive.dte.updateLogDetailURL";
   public static final String HIVE_DTE_LOGID = "hive.dte.logid";
+  public static final String HIVE_DTE_LOGDATE_FORMAT = "hive.dte.logdateFormat";
 
   public static class Default {
     public static final String DEFAULT_DATABASE = "default";
@@ -49,5 +50,6 @@ public class Config {
     public static final String DEFAULT_ZOOKEEPER_CONNECT = null;
     public static final int DEFAULT_ZOOKEEPER_SESSION_TIMEOUT = 5000;
     public static final String DEFAULT_DB_CONNECT_URL = null;
+    public static final String DEFAULT_DTE_LOGDATE_FORMAT = "yyyyMMddHHmm";
   }
 }

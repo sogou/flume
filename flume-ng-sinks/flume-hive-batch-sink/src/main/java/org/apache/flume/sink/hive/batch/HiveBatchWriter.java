@@ -1,17 +1,18 @@
 package org.apache.flume.sink.hive.batch;
 
+import org.apache.flume.sink.hive.batch.util.CommonUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile;
 import org.apache.hadoop.hive.ql.io.orc.Writer;
 import org.apache.hadoop.hive.serde2.Deserializer;
-import org.apache.hadoop.hive.serde2.SerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.io.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.List;
 
 /**
@@ -24,28 +25,20 @@ public class HiveBatchWriter {
   private Writer writer;
   private Deserializer deserializer;
   private String file;
-  private long idleTimeout;
+  private long idleTimeout = 5000;
   private List<Callback> initCallbacks = null;
   private List<Callback> closeCallbacks = null;
+  private String logdate = null; // optional
+  private String logdateFormat = null; // optional
 
   public interface Callback {
     void run();
   }
 
-  public HiveBatchWriter(Configuration conf, SerDe serde, String location,
-                         long idleTimeout) throws IOException, SerDeException {
-    this(conf, serde, location, idleTimeout, null, null);
-  }
-
-  public HiveBatchWriter(Configuration conf, Deserializer deserializer, String file,
-                         long idleTimeout,
-                         List<Callback> initCallbacks, List<Callback> closeCallbacks)
+  public HiveBatchWriter(Configuration conf, Deserializer deserializer, String file)
       throws IOException, SerDeException {
     this.deserializer = deserializer;
     this.file = file;
-    this.idleTimeout = idleTimeout;
-    this.initCallbacks = initCallbacks;
-    this.closeCallbacks = closeCallbacks;
 
     OrcFile.WriterOptions writerOptions = OrcFile.writerOptions(conf);
     writerOptions.inspector(deserializer.getObjectInspector());
@@ -74,10 +67,35 @@ public class HiveBatchWriter {
   }
 
   public boolean isIdle() {
-    return lastWriteTime > 0 && System.currentTimeMillis() - lastWriteTime >= idleTimeout;
+    long logdateTimestamp = 0;
+    if (logdate != null && logdateFormat != null) {
+      try {
+        logdateTimestamp = CommonUtils.convertTimeStringToTimestamp(logdate, logdateFormat);
+      } catch (ParseException e) {
+        LOG.error(CommonUtils.getStackTraceStr(e));
+      }
+    }
+    return lastWriteTime > logdateTimestamp
+        && System.currentTimeMillis() - lastWriteTime >= idleTimeout;
   }
 
-  public String getFile() {
-    return file;
+  public void setLogdate(String logdate) {
+    this.logdate = logdate;
+  }
+
+  public void setLogdateFormat(String logdateFormat) {
+    this.logdateFormat = logdateFormat;
+  }
+
+  public void setIdleTimeout(long idleTimeout) {
+    this.idleTimeout = idleTimeout;
+  }
+
+  public void setInitCallbacks(List<Callback> initCallbacks) {
+    this.initCallbacks = initCallbacks;
+  }
+
+  public void setCloseCallbacks(List<Callback> closeCallbacks) {
+    this.closeCallbacks = closeCallbacks;
   }
 }
