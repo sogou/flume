@@ -173,6 +173,12 @@ limitations under the License.
       <scope>compile</scope>
     </dependency>
 
+    <dependency>
+      <groupId>com.sun.jersey</groupId>
+      <artifactId>jersey-client</artifactId>
+      <version>1.8</version>
+    </dependency>
+
     <!--temporary - really belongs to hive-streaming : roshan -->
     <dependency>
       <groupId>xerces</groupId>

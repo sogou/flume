@@ -1,10 +1,7 @@
 package org.apache.flume.sink.hive.batch.util;
 
-import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.impl.client.DefaultHttpClient;
+import com.sun.jersey.api.client.Client;
+import com.sun.jersey.api.client.WebResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,18 +12,13 @@ public class DTEUtils {
   private static Logger LOG = LoggerFactory.getLogger(DTEUtils.class);
 
   public static void updateLogDetail(String serviceURL, int logid, String logdate) {
-    String url = String.format("%s/%s/%s", serviceURL, logid, logdate);
     try {
-      HttpPost request = new HttpPost(url);
-      HttpClient httpClient = new DefaultHttpClient();
-      HttpResponse response = httpClient.execute(request);
-      int statusCode = response.getStatusLine().getStatusCode();
-
-      if (statusCode != HttpStatus.SC_OK) {
-        LOG.error("fail to update logdetail, status code:" + statusCode);
-      }
-    } catch (Exception e) {
-      LOG.error("fail to update logdetail", e);
+      String url = String.format("%s/%s/%s", serviceURL, logid, logdate);
+      Client client = Client.create();
+      WebResource resource = client.resource(url);
+      resource.post();
+    } catch (Throwable e) {
+      LOG.error("Fail to update DTE LogDetail (" + logid + ", " + logdate + ")", e);
     }
   }
 }
