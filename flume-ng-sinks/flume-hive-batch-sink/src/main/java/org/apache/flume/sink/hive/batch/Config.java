@@ -14,8 +14,8 @@ public class Config {
   public static final String HIVE_MAX_OPEN_FILES = "hive.maxOpenFiles";
   public static final String HIVE_BATCH_SIZE = "hive.batchSize";
   public static final String HIVE_IDLE_TIMEOUT = "hive.idleTimeout";
-  public static final String HIVE_CALL_TIMEOUT = "hive.callTimeout";
-  public static final String HIVE_THREADS_POOL_SIZE = "hive.threadsPoolSize";
+  public static final String HIVE_IDLE_QUEUE_SIZE = "hive.idleQueueSize";
+  public static final String HIVE_IDLE_CLOSE_THREAD_POOL_SIZE = "hive.idleCloseThreadPoolSize";
   public static final String HIVE_SERDE = "hive.serde";
   public static final String HIVE_SERDE_PROPERTIES = "hive.serdeProperties";
   public static final String HIVE_ROUND = "hive.round";
@@ -38,10 +38,10 @@ public class Config {
     public static final String DEFAULT_FILE_PREFIX = "FlumeData";
     public static final String DEFAULT_FILE_SUFFIX = "orc";
     public static final int DEFAULT_MAX_OPEN_FILES = 5000;
-    public static final long DEFAULT_BATCH_SIZE = 1000;
+    public static final int DEFAULT_BATCH_SIZE = 1000;
     public static final long DEFAULT_IDLE_TIMEOUT = 5000;
-    public static final long DEFAULT_CALL_TIMEOUT = 10000;
-    public static final int DEFAULT_THREADS_POOL_SIZE = 5;
+    public static final int DEFAULT_IDLE_QUEUE_SZIE = 100;
+    public static final int DEFAULT_IDLE_CLOSE_THREAD_POOL_SIZE = 10;
     public static final boolean DEFAULT_ROUND = false;
     public static final String DEFAULT_ROUND_UNIT = "second";
     public static final int DEFAULT_ROUND_VALUE = 1;

@@ -1,6 +1,5 @@
 package org.apache.flume.sink.hive.batch;
 
-import org.apache.flume.sink.hive.batch.util.CommonUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile;
@@ -12,7 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.List;
 
 /**
@@ -30,6 +28,7 @@ public class HiveBatchWriter {
   private List<Callback> closeCallbacks = null;
   private String logdate = null; // optional
   private String logdateFormat = null; // optional
+  private long minFinishedTimestamp = 0;
 
   public interface Callback {
     void run();
@@ -67,16 +66,10 @@ public class HiveBatchWriter {
   }
 
   public boolean isIdle() {
-    long logdateTimestamp = 0;
-    if (logdate != null && logdateFormat != null) {
-      try {
-        logdateTimestamp = CommonUtils.convertTimeStringToTimestamp(logdate, logdateFormat);
-      } catch (ParseException e) {
-        LOG.error(CommonUtils.getStackTraceStr(e));
-      }
-    }
-    return lastWriteTime > logdateTimestamp
-        && System.currentTimeMillis() - lastWriteTime >= idleTimeout;
+    long currentTimestamp = System.currentTimeMillis();
+    return lastWriteTime > 0
+        && currentTimestamp > minFinishedTimestamp
+        && currentTimestamp - lastWriteTime >= idleTimeout;
   }
 
   public void setLogdate(String logdate) {
@@ -97,5 +90,13 @@ public class HiveBatchWriter {
 
   public void setCloseCallbacks(List<Callback> closeCallbacks) {
     this.closeCallbacks = closeCallbacks;
+  }
+
+  public void setMinFinishedTimestamp(long minFinishedTimestamp) {
+    this.minFinishedTimestamp = minFinishedTimestamp;
+  }
+
+  public String getFile() {
+    return file;
   }
 }

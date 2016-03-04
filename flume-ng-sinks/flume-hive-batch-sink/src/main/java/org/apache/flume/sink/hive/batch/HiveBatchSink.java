@@ -1,11 +1,6 @@
 package org.apache.flume.sink.hive.batch;
 
-import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Predicate;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.flume.*;
 import org.apache.flume.conf.Configurable;
@@ -27,9 +22,9 @@ import org.apache.hadoop.hive.serde2.SerDeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.sql.SQLException;
+import java.text.ParseException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -43,6 +38,10 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   private static String DIRECTORY_DELIMITER = System.getProperty("file.separator");
 
   private Configuration conf;
+
+  private volatile boolean isRunning = false;
+
+  // Hive
   private String dbName;
   private String tableName;
   private String partition;
@@ -50,35 +49,49 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   private String fileName;
   private String suffix;
   private TimeZone timeZone;
-  private int maxOpenFiles;
-  private long batchSize;
-  private long idleTimeout;
-  private long callTimeout;
-  private int threadsPoolSize;
+  private Deserializer deserializer;
+
+  // Transaction
+  private int batchSize;
+
+  // Rounding
   private boolean needRounding;
   private int roundUnit = Calendar.SECOND;
   private int roundValue = 1;
   private boolean useLocalTime = false;
-  private Deserializer deserializer;
 
+  // Active writers
+  private int maxOpenFiles;
   private AtomicLong writerCounter;
-  private WriterLinkedHashMap writers;
-  private ExecutorService callTimeoutPool;
+  private WriterLinkedHashMap activeWriters;
+  private Object writersLock = new Object();
+
+  // Idle writers
+  private long idleTimeout;
+  private int idleQueueSize;
+  private int idleWriterCloseThreadPoolSize;
+  private IdleWriterRemoveThread idleWriterRemoveThread;
+  private BlockingQueue<HiveBatchWriter> idleWriters;
+  private ExecutorService idleWriterCloseThreadPool;
+
+  // Counter
   private String timedSinkCounterCategoryKey = "category";
   private String sinkCounterType = "SinkCounter";
   private SinkCounter sinkCounter;
 
+  // Zookeeper
   private String zookeeperConnect;
   private int zookeeperSessionTimeout;
   private String zookeeperServiceName;
   private String hostName;
   private ZKService zkService = null;
+
+  // DTE
   private String dbConnectURL;
   private String updateLogDetailURL;
   private int logId;
   private String logdateFormat;
   private LeaderThread leaderThread;
-  private volatile boolean isRunning = false;
 
   private class WriterLinkedHashMap extends LinkedHashMap<String, HiveBatchWriter> {
     private final int maxOpenFiles;
@@ -90,38 +103,78 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
 
     @Override
     protected boolean removeEldestEntry(Map.Entry<String, HiveBatchWriter> eldest) {
-      if (this.size() > maxOpenFiles) {
-        try {
-          // when exceed maxOpenFiles, close the eldest writer
-          eldest.getValue().close();
-        } catch (IOException e) {
-          LOG.warn(eldest.getKey().toString(), e);
+      synchronized (writersLock) {
+        if (this.size() > maxOpenFiles) {
+          try {
+            idleWriters.put(eldest.getValue());
+          } catch (InterruptedException e) {
+            LOG.warn("interrupted", e);
+          }
+          return true;
+        } else {
+          return false;
         }
-        return true;
-      } else {
-        return false;
       }
     }
   }
 
-  private class DaemonThreadFactory implements ThreadFactory {
-    private String name;
-
-    public DaemonThreadFactory(String name) {
-      this.name = name;
-    }
+  private class IdleWriterRemoveThread implements Runnable {
+    private final long CHECK_INTERVAL = 5;
 
     @Override
-    public Thread newThread(Runnable r) {
-      Thread thread = new Thread(r);
-      thread.setName(name);
-      thread.setDaemon(true);
-      return thread;
+    public void run() {
+      while (isRunning && !Thread.currentThread().isInterrupted()) {
+        synchronized (writersLock) {
+          Iterator<Map.Entry<String, HiveBatchWriter>> it = activeWriters.entrySet().iterator();
+          while (it.hasNext()) {
+            Map.Entry<String, HiveBatchWriter> entry = it.next();
+            if (entry.getValue().isIdle()) {
+              try {
+                // put writer to idleWriters
+                idleWriters.put(entry.getValue());
+              } catch (InterruptedException e) {
+                LOG.warn("interrupted", e);
+                Thread.currentThread().interrupt();
+              }
+              // remove writer from activeWriters
+              it.remove();
+            }
+          }
+        }
+
+        try {
+          TimeUnit.SECONDS.sleep(CHECK_INTERVAL);
+        } catch (InterruptedException e) {
+          LOG.warn("interrupted", e);
+          Thread.currentThread().interrupt();
+        }
+      }
+    }
+  }
+
+  private class IdleWriterCloseThread implements Runnable {
+
+    @Override
+    public void run() {
+      while (isRunning && !Thread.currentThread().isInterrupted()) {
+        try {
+          HiveBatchWriter writer = idleWriters.take();
+          LOG.info("Closing " + writer.getFile());
+          try {
+            writer.close();
+          } catch (Exception e) {
+            LOG.error("Fail to close " + writer.getFile(), e);
+          }
+        } catch (InterruptedException e) {
+          LOG.warn("interrupted", e);
+          Thread.currentThread().interrupt();
+        }
+      }
     }
   }
 
   private class LeaderThread implements Runnable {
-    private final long CHECK_INTERVAL = 30;
+    private final long CHECK_INTERVAL = 5;
 
     @Override
     public void run() {
@@ -131,30 +184,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
           if (leader != null && leader.getHostName().equals(hostName)) {
             // do some leader job
             int onlineServerNum = zkService.getAllServerInfos().size();
-            HiveSinkDetailDao dao = new HiveSinkDetailDao(dbConnectURL, zookeeperServiceName);
-            List<String> logdateList = null;
-            try {
-              dao.connect();
-              logdateList = dao.getFinishedLogdateList(onlineServerNum);
-              if (logdateList.size() > 0) {
-                dao.updateCheckedState(logdateList);
-              }
-            } catch (SQLException e) {
-              LOG.error(CommonUtils.getStackTraceStr(e));
-            } finally {
-              try {
-                dao.close();
-              } catch (SQLException e) {
-                LOG.error(CommonUtils.getStackTraceStr(e));
-              }
-            }
-            if (logdateList != null && logdateList.size() > 0) {
-              // TODO DTE should have logDetail batch update API for better performance
-              for (String logdate : logdateList) {
-                DTEUtils.updateLogDetail(updateLogDetailURL, logId, logdate);
-              }
-              LOG.info("Update DTE LogDetail, logid: " + logId + ", logdateList: " + logdateList);
-            }
+            updateLogDetail(onlineServerNum);
           }
         } catch (Exception e) {
           LOG.error(CommonUtils.getStackTraceStr(e));
@@ -170,9 +200,38 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     }
   }
 
+  private void updateLogDetail(int onlineServerNum) {
+    HiveSinkDetailDao dao = new HiveSinkDetailDao(dbConnectURL, zookeeperServiceName);
+    List<String> logdateList = null;
+    try {
+      dao.connect();
+      logdateList = dao.getFinishedLogdateList(onlineServerNum);
+      if (logdateList.size() > 0) {
+        dao.updateCheckedState(logdateList);
+      }
+    } catch (SQLException e) {
+      LOG.error(CommonUtils.getStackTraceStr(e));
+    } finally {
+      try {
+        dao.close();
+      } catch (SQLException e) {
+        LOG.error(CommonUtils.getStackTraceStr(e));
+      }
+    }
+
+    if (logdateList != null && logdateList.size() > 0) {
+      // TODO DTE should have logDetail batch update API for better performance
+      for (String logdate : logdateList) {
+        DTEUtils.updateLogDetail(updateLogDetailURL, logId, logdate);
+      }
+      LOG.info("Update DTE LogDetail, logid: " + logId + ", logdateList: " + logdateList);
+    }
+  }
+
   @Override
   public void configure(Context context) {
     conf = new Configuration();
+
     dbName = context.getString(Config.HIVE_DATABASE, Config.Default.DEFAULT_DATABASE);
     tableName = Preconditions.checkNotNull(context.getString(Config.HIVE_TABLE),
         Config.HIVE_TABLE + " is required");
@@ -183,11 +242,14 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     this.suffix = context.getString(Config.HIVE_FILE_SUFFIX, Config.Default.DEFAULT_FILE_SUFFIX);
     String tzName = context.getString(Config.HIVE_TIME_ZONE);
     timeZone = tzName == null ? null : TimeZone.getTimeZone(tzName);
+
     maxOpenFiles = context.getInteger(Config.HIVE_MAX_OPEN_FILES, Config.Default.DEFAULT_MAX_OPEN_FILES);
-    batchSize = context.getLong(Config.HIVE_BATCH_SIZE, Config.Default.DEFAULT_BATCH_SIZE);
+
+    batchSize = context.getInteger(Config.HIVE_BATCH_SIZE, Config.Default.DEFAULT_BATCH_SIZE);
+
     idleTimeout = context.getLong(Config.HIVE_IDLE_TIMEOUT, Config.Default.DEFAULT_IDLE_TIMEOUT);
-    callTimeout = context.getLong(Config.HIVE_CALL_TIMEOUT, Config.Default.DEFAULT_CALL_TIMEOUT);
-    threadsPoolSize = context.getInteger(Config.HIVE_THREADS_POOL_SIZE, Config.Default.DEFAULT_THREADS_POOL_SIZE);
+    idleQueueSize = context.getInteger(Config.HIVE_IDLE_QUEUE_SIZE, Config.Default.DEFAULT_IDLE_QUEUE_SZIE);
+    idleWriterCloseThreadPoolSize = context.getInteger(Config.HIVE_IDLE_CLOSE_THREAD_POOL_SIZE, Config.Default.DEFAULT_IDLE_CLOSE_THREAD_POOL_SIZE);
 
     String serdeName = Preconditions.checkNotNull(context.getString(Config.HIVE_SERDE),
         Config.HIVE_SERDE + " is required");
@@ -244,6 +306,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       }
       this.hostName = Preconditions.checkNotNull(context.getString(Config.HIVE_HOST_NAME),
           Config.HIVE_HOST_NAME + " is required");
+
       this.dbConnectURL = context.getString(Config.HIVE_DB_CONNECT_URL, Config.Default.DEFAULT_DB_CONNECT_URL);
       if (this.dbConnectURL != null) {
         this.updateLogDetailURL = Preconditions.checkNotNull(context.getString(Config.HIVE_DTE_UPDATE_LOGDETAIL_URL),
@@ -279,14 +342,16 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
         String partitionPath = rootPath + DIRECTORY_DELIMITER + realPartition;
         String keyPath = partitionPath + DIRECTORY_DELIMITER + realName;
 
-        HiveBatchWriter writer = writers.get(keyPath);
-        if (writer == null) {
-          long counter = writerCounter.addAndGet(1);
-          String fullFileName = realName + "." + System.nanoTime() + "." + counter + "." + this.suffix;
-          writer = initializeHiveBatchWriter(partitionPath, fullFileName, realPartition);
-          writers.put(keyPath, writer);
+        synchronized (writersLock) {
+          HiveBatchWriter writer = activeWriters.get(keyPath);
+          if (writer == null) {
+            long counter = writerCounter.addAndGet(1);
+            String fullFileName = realName + "." + System.nanoTime() + "." + counter + "." + this.suffix;
+            writer = initializeHiveBatchWriter(partitionPath, fullFileName, realPartition);
+            activeWriters.put(keyPath, writer);
+          }
+          writer.append(event.getBody());
         }
-        writer.append(event.getBody());
         events.add(event);
       }
 
@@ -297,8 +362,6 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       } else {
         sinkCounter.incrementBatchUnderflowCount();
       }
-
-      closeIdleWriters();
 
       // FIXME data may not flush to orcfile after commit transaction, which will cause data lose
       transaction.commit();
@@ -348,109 +411,32 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     writer.setCloseCallbacks(closeCallbacks);
     writer.setLogdate(logdate);
     writer.setLogdateFormat(logdateFormat);
+    if (logdate != null && logdateFormat != null) {
+      try {
+        long minFinishedTimestamp = CommonUtils.convertTimeStringToTimestamp(logdate, logdateFormat)
+            + CommonUtils.getMillisecond(roundValue, roundUnit);
+        writer.setMinFinishedTimestamp(minFinishedTimestamp);
+      } catch (ParseException e) {
+        LOG.error(CommonUtils.getStackTraceStr(e));
+      }
+    }
 
     return writer;
-  }
-
-  private void closeIdleWriters() throws IOException, InterruptedException {
-    Map<String, HiveBatchWriter> closeWriters = Maps.filterValues(writers,
-        new Predicate<HiveBatchWriter>() {
-          @Override
-          public boolean apply(@Nullable HiveBatchWriter writer) {
-            return writer.isIdle();
-          }
-        });
-
-    if (closeWriters.size() == 0) {
-      return;
-    }
-
-    List<Callable<Void>> callables = Lists.newArrayList(Iterables.transform(closeWriters.entrySet(),
-        new Function<Map.Entry<String, HiveBatchWriter>, Callable<Void>>() {
-          @Override
-          public Callable<Void> apply(@Nullable Map.Entry<String, HiveBatchWriter> entry) {
-            final String path = entry.getKey();
-            final HiveBatchWriter writer = entry.getValue();
-            return new Callable<Void>() {
-              @Override
-              public Void call() throws Exception {
-                LOG.info("Closing {}", path);
-                writer.close();
-                return null;
-              }
-            };
-          }
-        }));
-
-    try {
-      callWithTimeout(callables, callTimeout, callTimeoutPool);
-    } catch (TimeoutException e) {
-      throw new IOException(e);
-    } catch (InterruptedException e) {
-      throw e;
-    } catch (ExecutionException e) {
-      Throwable cause = e.getCause();
-      if (cause instanceof IOException) {
-        throw (IOException) cause;
-      } else if (cause instanceof InterruptedException) {
-        throw (InterruptedException) cause;
-      } else if (cause instanceof RuntimeException) {
-        throw (RuntimeException) cause;
-      } else {
-        throw new RuntimeException(e);
-      }
-    } finally {
-      List<String> closePaths = Lists.newArrayList(Iterables.transform(closeWriters.entrySet(),
-          new Function<Map.Entry<String, HiveBatchWriter>, String>() {
-            @Override
-            public String apply(@Nullable Map.Entry<String, HiveBatchWriter> entry) {
-              return entry.getKey();
-            }
-          }
-      ));
-      for (String path : closePaths) {
-        writers.remove(path);
-      }
-    }
-  }
-
-  private <T> List<T> callWithTimeout(List<Callable<T>> callables,
-                                      long callTimeout, ExecutorService service)
-      throws ExecutionException, InterruptedException, TimeoutException {
-    List<Future<T>> futures = new ArrayList<Future<T>>();
-    for (Callable<T> callable : callables) {
-      futures.add(callTimeoutPool.submit(callable));
-    }
-
-    boolean isTimeout = false;
-    List<T> results = new ArrayList<T>();
-    for (Future<T> future : futures) {
-      if (callTimeout > 0) {
-        try {
-          results.add(future.get(callTimeout, TimeUnit.MILLISECONDS));
-        } catch (TimeoutException e) {
-          isTimeout = true;
-        }
-      } else {
-        results.add(future.get());
-      }
-    }
-
-    if (isTimeout) {
-      throw new TimeoutException("Callables timed out after " + callTimeout + " ms");
-    }
-
-    return results;
   }
 
   @Override
   public synchronized void start() {
     this.isRunning = true;
     this.writerCounter = new AtomicLong(0);
-    this.writers = new WriterLinkedHashMap(maxOpenFiles);
-    String timeoutName = "hive-batch-" + getName() + "-call-runner-%d";
-    this.callTimeoutPool = Executors.newFixedThreadPool(threadsPoolSize,
-        new ThreadFactoryBuilder().setNameFormat(timeoutName).build());
+    this.activeWriters = new WriterLinkedHashMap(maxOpenFiles);
+    this.idleWriters = new ArrayBlockingQueue<HiveBatchWriter>(idleQueueSize, true);
+    this.idleWriterCloseThreadPool = Executors.newFixedThreadPool(idleWriterCloseThreadPoolSize,
+        new ThreadFactoryBuilder().setNameFormat("idleWriterCloseThread-%d").build());
+    for (int i = 0; i < idleWriterCloseThreadPoolSize; i++) {
+      idleWriterCloseThreadPool.submit(new IdleWriterCloseThread());
+    }
+    this.idleWriterRemoveThread = new IdleWriterRemoveThread();
+    new Thread(this.idleWriterRemoveThread, "IdleWriterCleanThread").start();
     sinkCounter.start();
     if (this.zookeeperConnect != null) {
       this.zkService = new ZKService(this.zookeeperConnect, this.zookeeperServiceName, this.hostName, this.zookeeperSessionTimeout);
@@ -462,7 +448,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       if (this.dbConnectURL != null) {
         // To Update DTE LogDetail
         this.leaderThread = new LeaderThread();
-        new DaemonThreadFactory("HiveBatchSinkLeaderThread").newThread(this.leaderThread).start();
+        new Thread(this.leaderThread, "HiveBatchSinkLeaderThread").start();
       }
     }
     super.start();
@@ -470,7 +456,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
 
   @Override
   public synchronized void stop() {
-    for (Map.Entry<String, HiveBatchWriter> entry : writers.entrySet()) {
+    for (Map.Entry<String, HiveBatchWriter> entry : activeWriters.entrySet()) {
       LOG.info("Closing {}", entry.getKey());
       try {
         entry.getValue().close();
@@ -479,8 +465,8 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
             "Exception follows.", e);
       }
     }
-    writers.clear();
-    writers = null;
+    activeWriters.clear();
+    activeWriters = null;
     sinkCounter.stop();
     if (this.zkService != null) {
       try {
