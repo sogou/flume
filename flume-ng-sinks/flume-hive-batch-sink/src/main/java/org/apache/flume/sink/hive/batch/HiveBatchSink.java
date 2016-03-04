@@ -429,7 +429,6 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
         try {
           results.add(future.get(callTimeout, TimeUnit.MILLISECONDS));
         } catch (TimeoutException e) {
-          future.cancel(true);
           isTimeout = true;
         }
       } else {
