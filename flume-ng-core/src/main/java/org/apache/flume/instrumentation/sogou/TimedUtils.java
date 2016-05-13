@@ -103,7 +103,7 @@ public class TimedUtils {
         long num = entry.getValue();
 
         if (!fiveMinMap.containsKey(category)) {
-          fiveMinMap.put(category, new FiveMinLinkedHashMap<String, TimestampCount>());
+          fiveMinMap.put(category, new FiveMinLinkedHashMap());
         }
         if (!fiveMinMap.get(category).containsKey(fiveMin)) {
           fiveMinMap.get(category).put(fiveMin, new TimestampCount());
@@ -114,7 +114,7 @@ public class TimedUtils {
     }
   }
 
-  public static class FiveMinLinkedHashMap<String, TimestampCount> extends LinkedHashMap<String, TimestampCount> {
+  public static class FiveMinLinkedHashMap extends LinkedHashMap<String, TimestampCount> {
     private static final int DEFAULT_MAX_SIZE = 500;
     private int maxSize = DEFAULT_MAX_SIZE;
 

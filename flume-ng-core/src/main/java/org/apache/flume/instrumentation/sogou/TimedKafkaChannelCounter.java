@@ -9,11 +9,11 @@ import java.util.Map;
  */
 public class TimedKafkaChannelCounter extends KafkaChannelCounter implements TimedKafkaChannelCounterMBean {
   private Map<String, TimedUtils.TimestampCount> eventPutSuccessCountInFiveMinMap =
-      new TimedUtils.FiveMinLinkedHashMap<String, TimedUtils.TimestampCount>();
+      new TimedUtils.FiveMinLinkedHashMap();
   private Map<String, TimedUtils.TimestampCount> eventTakeSuccessCountInFiveMinMap =
-      new TimedUtils.FiveMinLinkedHashMap<String, TimedUtils.TimestampCount>();
+      new TimedUtils.FiveMinLinkedHashMap();
   private Map<String, TimedUtils.TimestampCount> rollbackCountInFiveMinMap =
-      new TimedUtils.FiveMinLinkedHashMap<String, TimedUtils.TimestampCount>();
+      new TimedUtils.FiveMinLinkedHashMap();
 
   private static final String COUNTER_EVENT_PUT_SUCCESS_IN_FIVE_MIN =
       "channel.event.put.success.5min";

@@ -12,9 +12,9 @@ import java.util.Map;
  */
 public class TimedSourceCounter extends SourceCounter implements TimedSourceCounterMBean {
   private Map<String, TimedUtils.TimestampCount> eventReceivedCountInFiveMinMap =
-      new TimedUtils.FiveMinLinkedHashMap<String, TimedUtils.TimestampCount>();
+      new TimedUtils.FiveMinLinkedHashMap();
   private Map<String, TimedUtils.TimestampCount> eventAcceptedCountInFiveMinMap =
-      new TimedUtils.FiveMinLinkedHashMap<String, TimedUtils.TimestampCount>();
+      new TimedUtils.FiveMinLinkedHashMap();
   private Map<String, Map<String, TimedUtils.TimestampCount>> categoryEventReceivedCountInFiveMinMap =
       new HashMap<String, Map<String, TimedUtils.TimestampCount>>();
   private Map<String, Map<String, TimedUtils.TimestampCount>> categoryEventAcceptedCountInFiveMinMap =
