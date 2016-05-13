@@ -231,6 +231,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
   @Override
   public void configure(Context context) {
     conf = new Configuration();
+    conf.setBoolean("fs.hdfs.impl.disable.cache", true);
 
     dbName = context.getString(Config.HIVE_DATABASE, Config.Default.DEFAULT_DATABASE);
     tableName = Preconditions.checkNotNull(context.getString(Config.HIVE_TABLE),
