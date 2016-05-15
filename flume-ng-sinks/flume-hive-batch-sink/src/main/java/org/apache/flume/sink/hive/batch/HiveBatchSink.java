@@ -8,7 +8,6 @@ import org.apache.flume.formatter.output.BucketPath;
 import org.apache.flume.instrumentation.SinkCounter;
 import org.apache.flume.instrumentation.sogou.TimedSinkCounter;
 import org.apache.flume.sink.AbstractSink;
-import org.apache.flume.sink.hive.batch.callback.AddPartitionCallback;
 import org.apache.flume.sink.hive.batch.callback.UpdateSinkDetailCallback;
 import org.apache.flume.sink.hive.batch.dao.HiveSinkDetailDao;
 import org.apache.flume.sink.hive.batch.util.CommonUtils;
@@ -17,8 +16,10 @@ import org.apache.flume.sink.hive.batch.util.HiveUtils;
 import org.apache.flume.sink.hive.batch.zk.ZKService;
 import org.apache.flume.sink.hive.batch.zk.ZKServiceException;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
 import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.hive.serde2.SerDeException;
+import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -184,7 +185,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
           if (leader != null && leader.getHostName().equals(hostName)) {
             // do some leader job
             int onlineServerNum = zkService.getAllServerInfos().size();
-            updateLogDetail(onlineServerNum);
+            doLeaderTask(onlineServerNum);
           }
         } catch (Exception e) {
           LOG.error(CommonUtils.getStackTraceStr(e));
@@ -200,15 +201,12 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     }
   }
 
-  private void updateLogDetail(int onlineServerNum) {
+  private void doLeaderTask(int onlineServerNum) {
     HiveSinkDetailDao dao = new HiveSinkDetailDao(dbConnectURL, zookeeperServiceName);
-    List<String> logdateList = null;
+    List<String[]> finishedList = null;
     try {
       dao.connect();
-      logdateList = dao.getFinishedLogdateList(onlineServerNum);
-      if (logdateList.size() > 0) {
-        dao.updateCheckedState(logdateList);
-      }
+      finishedList = dao.getFinishedList(onlineServerNum);
     } catch (SQLException e) {
       LOG.error(CommonUtils.getStackTraceStr(e));
     } finally {
@@ -219,12 +217,83 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       }
     }
 
-    if (logdateList != null && logdateList.size() > 0) {
-      // TODO DTE should have logDetail batch update API for better performance
-      for (String logdate : logdateList) {
-        DTEUtils.updateLogDetail(updateLogDetailURL, logId, logdate);
+    if (finishedList == null || finishedList.size() == 0) {
+      return;
+    }
+
+    List<String> updateCheckedStateList = new ArrayList<String>();
+    for (String[] info : finishedList) {
+      String logdate = info[0];
+      String partition = info[1];
+      String location = info[2];
+
+      List<String> values = HiveUtils.getPartitionValues(partition);
+      try {
+        LOG.info("Add hive partition: " + dbName + "." + tableName + " " + values);
+        addHivePartitionWithRetry(values, location);
+      } catch (Exception e) {
+        LOG.error("Fail to add partition: " + dbName + "." + tableName + " " + values, e);
+        continue;
       }
-      LOG.info("Update DTE LogDetail, logid: " + logId + ", logdateList: " + logdateList);
+
+      try {
+        LOG.info("Update DTE LogDetail, logid: " + logId + ", logdate: " + logdate);
+        DTEUtils.updateLogDetail(updateLogDetailURL, logId, logdate);
+      } catch (Exception e) {
+        LOG.error("Fail to update DTE LogDetail (" + logId + ", " + logdate + ")", e);
+        continue;
+      }
+
+      updateCheckedStateList.add(logdate);
+    }
+
+
+    if (updateCheckedStateList.size() == 0) {
+      return;
+    }
+
+    try {
+      dao.connect();
+      dao.updateCheckedState(updateCheckedStateList);
+    } catch (SQLException e) {
+      LOG.error(CommonUtils.getStackTraceStr(e));
+    } finally {
+      try {
+        dao.close();
+      } catch (SQLException e) {
+        LOG.error(CommonUtils.getStackTraceStr(e));
+      }
+    }
+  }
+
+  private void addHivePartitionWithRetry(List<String> values, String location) throws Exception {
+    final int MAX_RETRY_NUM = 5;
+    final int SLEEP_INTERVAL = 1;
+    boolean finished = false;
+
+    for (int i = 0; i < MAX_RETRY_NUM; i++) {
+      try {
+        HiveUtils.addPartition(tableName, dbName, values, location);
+        finished = true;
+        break;
+      } catch (AlreadyExistsException e) {
+        LOG.warn("Partition already exists: " + dbName + "." + tableName + " " + values);
+        finished = true;
+        break;
+      } catch (TException e) {
+        LOG.error("Fail to add partition: " + dbName + "." + tableName + " " + values, e);
+      }
+
+      try {
+        TimeUnit.SECONDS.sleep(SLEEP_INTERVAL);
+      } catch (InterruptedException e) {
+        LOG.warn("interrupted", e);
+      }
+    }
+
+    if (!finished) {
+      throw new Exception("Fail to add partition: " + dbName + "." + tableName + " " + values
+          + " after " + MAX_RETRY_NUM + " times");
     }
   }
 
@@ -390,20 +459,15 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     }
   }
 
-  private HiveBatchWriter initializeHiveBatchWriter(String path, String fileName, String partition)
+  private HiveBatchWriter initializeHiveBatchWriter(String location, String fileName, String partition)
       throws IOException, SerDeException {
-    String file = path + DIRECTORY_DELIMITER + fileName;
+    String file = location + DIRECTORY_DELIMITER + fileName;
     String logdate = HiveUtils.getPartitionValue(partition, "logdate");
-    List<String> values = HiveUtils.getPartitionValues(partition);
     List<HiveBatchWriter.Callback> closeCallbacks = new ArrayList<HiveBatchWriter.Callback>();
 
-    HiveBatchWriter.Callback addPartitionCallback = new AddPartitionCallback(dbName, tableName,
-        values, path);
-    closeCallbacks.add(addPartitionCallback);
-
-    if (this.dbConnectURL != null && logdate != null) {
+    if (dbConnectURL != null && logdate != null) {
       HiveBatchWriter.Callback updateSinkDetailCallback = new UpdateSinkDetailCallback(
-          this.dbConnectURL, this.zookeeperServiceName, logdate, this.hostName, this.sinkCounter);
+          dbConnectURL, zookeeperServiceName, logdate, hostName, partition, location, sinkCounter);
       closeCallbacks.add(updateSinkDetailCallback);
     }
 
@@ -441,7 +505,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     sinkCounter.start();
     if (this.zookeeperConnect != null) {
       try {
-        startZKService();
+        startZKServiceWithRetry();
       } catch (Exception e) {
         LOG.error("Fail to start ZKService", e);
         stop();
@@ -457,7 +521,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     super.start();
   }
 
-  private void startZKService() throws Exception {
+  private void startZKServiceWithRetry() throws Exception {
     final int MAX_RETRY_NUM = 5;
     final int SLEEP_INTERVAL = 1;
     boolean started = false;

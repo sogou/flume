@@ -20,15 +20,20 @@ public class UpdateSinkDetailCallback implements HiveBatchWriter.Callback {
   private final String name;
   private final String logdate;
   private final String hostName;
+  private final String partition;
+  private final String location;
 
   private TimedSinkCounter sinkCounter = null;
 
   public UpdateSinkDetailCallback(String connectURL, String name, String logdate, String hostName,
+                                  String partition, String location,
                                   SinkCounter sinkCounter) {
     this.connectURL = connectURL;
     this.name = name;
     this.logdate = logdate;
     this.hostName = hostName;
+    this.partition = partition;
+    this.location = location;
     if (sinkCounter instanceof TimedSinkCounter) {
       this.sinkCounter = (TimedSinkCounter) sinkCounter;
     }
@@ -47,9 +52,9 @@ public class UpdateSinkDetailCallback implements HiveBatchWriter.Callback {
       }
       long updateTimestamp = System.currentTimeMillis();
       if (dao.exists(logdate, hostName)) {
-        dao.update(logdate, hostName, receiveCount, sinkCount, updateTimestamp);
+        dao.update(logdate, hostName, receiveCount, sinkCount, updateTimestamp, partition, location);
       } else {
-        dao.create(logdate, hostName, receiveCount, sinkCount, updateTimestamp);
+        dao.create(logdate, hostName, receiveCount, sinkCount, updateTimestamp, partition, location);
       }
     } catch (SQLException e) {
       LOG.error(CommonUtils.getStackTraceStr(e));

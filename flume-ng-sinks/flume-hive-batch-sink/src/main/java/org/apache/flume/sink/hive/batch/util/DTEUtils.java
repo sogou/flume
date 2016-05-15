@@ -11,14 +11,10 @@ import org.slf4j.LoggerFactory;
 public class DTEUtils {
   private static Logger LOG = LoggerFactory.getLogger(DTEUtils.class);
 
-  public static void updateLogDetail(String serviceURL, int logid, String logdate) {
-    try {
-      String url = String.format("%s/%s/%s", serviceURL, logid, logdate);
-      Client client = Client.create();
-      WebResource resource = client.resource(url);
-      resource.post();
-    } catch (Throwable e) {
-      LOG.error("Fail to update DTE LogDetail (" + logid + ", " + logdate + ")", e);
-    }
+  public static void updateLogDetail(String serviceURL, int logId, String logdate) {
+    String url = String.format("%s/%s/%s", serviceURL, logId, logdate);
+    Client client = Client.create();
+    WebResource resource = client.resource(url);
+    resource.post();
   }
 }
