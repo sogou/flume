@@ -26,8 +26,6 @@ public class HiveBatchWriter {
   private long idleTimeout = 5000;
   private List<Callback> initCallbacks = null;
   private List<Callback> closeCallbacks = null;
-  private String logdate = null; // optional
-  private String logdateFormat = null; // optional
   private long minFinishedTimestamp = 0;
 
   public interface Callback {
@@ -72,13 +70,6 @@ public class HiveBatchWriter {
         && currentTimestamp - lastWriteTime >= idleTimeout;
   }
 
-  public void setLogdate(String logdate) {
-    this.logdate = logdate;
-  }
-
-  public void setLogdateFormat(String logdateFormat) {
-    this.logdateFormat = logdateFormat;
-  }
 
   public void setIdleTimeout(long idleTimeout) {
     this.idleTimeout = idleTimeout;

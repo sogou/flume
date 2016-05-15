@@ -221,11 +221,10 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       return;
     }
 
-    List<String> updateCheckedStateList = new ArrayList<String>();
+    List<String> checkedPartitionList = new ArrayList<String>();
     for (String[] info : finishedList) {
-      String logdate = info[0];
-      String partition = info[1];
-      String location = info[2];
+      String partition = info[0];
+      String location = info[1];
 
       List<String> values = HiveUtils.getPartitionValues(partition);
       try {
@@ -236,6 +235,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
         continue;
       }
 
+      String logdate = HiveUtils.getPartitionValue(partition, "logdate");
       try {
         LOG.info("Update DTE LogDetail, logid: " + logId + ", logdate: " + logdate);
         DTEUtils.updateLogDetail(updateLogDetailURL, logId, logdate);
@@ -244,17 +244,17 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
         continue;
       }
 
-      updateCheckedStateList.add(logdate);
+      checkedPartitionList.add(partition);
     }
 
 
-    if (updateCheckedStateList.size() == 0) {
+    if (checkedPartitionList.size() == 0) {
       return;
     }
 
     try {
       dao.connect();
-      dao.updateCheckedState(updateCheckedStateList);
+      dao.updateCheckedState(checkedPartitionList);
     } catch (SQLException e) {
       LOG.error(CommonUtils.getStackTraceStr(e));
     } finally {
@@ -273,7 +273,7 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
 
     for (int i = 0; i < MAX_RETRY_NUM; i++) {
       try {
-        HiveUtils.addPartition(tableName, dbName, values, location);
+        HiveUtils.addPartition(dbName, tableName, values, location);
         finished = true;
         break;
       } catch (AlreadyExistsException e) {
@@ -465,17 +465,15 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     String logdate = HiveUtils.getPartitionValue(partition, "logdate");
     List<HiveBatchWriter.Callback> closeCallbacks = new ArrayList<HiveBatchWriter.Callback>();
 
-    if (dbConnectURL != null && logdate != null) {
+    if (dbConnectURL != null) {
       HiveBatchWriter.Callback updateSinkDetailCallback = new UpdateSinkDetailCallback(
-          dbConnectURL, zookeeperServiceName, logdate, hostName, partition, location, sinkCounter);
+          dbConnectURL, zookeeperServiceName, partition, location, hostName, sinkCounter);
       closeCallbacks.add(updateSinkDetailCallback);
     }
 
     HiveBatchWriter writer = new HiveBatchWriter(conf, deserializer, file);
     writer.setIdleTimeout(idleTimeout);
     writer.setCloseCallbacks(closeCallbacks);
-    writer.setLogdate(logdate);
-    writer.setLogdateFormat(logdateFormat);
     if (logdate != null && logdateFormat != null) {
       try {
         long minFinishedTimestamp = CommonUtils.convertTimeStringToTimestamp(logdate, logdateFormat)

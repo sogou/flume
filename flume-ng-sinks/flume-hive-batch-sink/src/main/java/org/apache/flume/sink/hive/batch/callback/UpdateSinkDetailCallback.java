@@ -5,6 +5,7 @@ import org.apache.flume.instrumentation.sogou.TimedSinkCounter;
 import org.apache.flume.sink.hive.batch.HiveBatchWriter;
 import org.apache.flume.sink.hive.batch.dao.HiveSinkDetailDao;
 import org.apache.flume.sink.hive.batch.util.CommonUtils;
+import org.apache.flume.sink.hive.batch.util.HiveUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,22 +19,19 @@ public class UpdateSinkDetailCallback implements HiveBatchWriter.Callback {
 
   private final String connectURL;
   private final String name;
-  private final String logdate;
   private final String hostName;
   private final String partition;
   private final String location;
 
   private TimedSinkCounter sinkCounter = null;
 
-  public UpdateSinkDetailCallback(String connectURL, String name, String logdate, String hostName,
-                                  String partition, String location,
-                                  SinkCounter sinkCounter) {
+  public UpdateSinkDetailCallback(String connectURL, String name, String partition,
+                                  String location, String hostName, SinkCounter sinkCounter) {
     this.connectURL = connectURL;
     this.name = name;
-    this.logdate = logdate;
-    this.hostName = hostName;
     this.partition = partition;
     this.location = location;
+    this.hostName = hostName;
     if (sinkCounter instanceof TimedSinkCounter) {
       this.sinkCounter = (TimedSinkCounter) sinkCounter;
     }
@@ -46,15 +44,16 @@ public class UpdateSinkDetailCallback implements HiveBatchWriter.Callback {
       dao.connect();
       long receiveCount = 0;
       long sinkCount = 0;
+      String logdate = HiveUtils.getPartitionValue(partition, "logdate");
       if (sinkCounter != null &&
           sinkCounter.getEventDrainSuccessCountInFiveMinMap().containsKey(logdate)) {
         sinkCount = sinkCounter.getEventDrainSuccessCountInFiveMinMap().get(logdate).getCount();
       }
       long updateTimestamp = System.currentTimeMillis();
-      if (dao.exists(logdate, hostName)) {
-        dao.update(logdate, hostName, receiveCount, sinkCount, updateTimestamp, partition, location);
+      if (dao.exists(partition, hostName)) {
+        dao.update(partition, location, hostName, receiveCount, sinkCount, updateTimestamp);
       } else {
-        dao.create(logdate, hostName, receiveCount, sinkCount, updateTimestamp, partition, location);
+        dao.create(partition, location, hostName, receiveCount, sinkCount, updateTimestamp);
       }
     } catch (SQLException e) {
       LOG.error(CommonUtils.getStackTraceStr(e));

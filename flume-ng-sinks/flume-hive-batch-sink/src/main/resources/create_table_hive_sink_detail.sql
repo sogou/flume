@@ -1,7 +1,8 @@
 CREATE TABLE `hive_sink_detail` (
 	`id` INT(11) NOT NULL AUTO_INCREMENT,
 	`name` CHAR(50) NOT NULL DEFAULT '0',
-	`logdate` CHAR(12) NOT NULL DEFAULT '0',
+	`partition` VARCHAR(50) NOT NULL DEFAULT '0',
+	`location` VARCHAR(200) NOT NULL DEFAULT '0',
 	`hostname` CHAR(50) NOT NULL DEFAULT '0',
 	`receivecount` BIGINT(20) NOT NULL DEFAULT '0',
 	`sinkcount` BIGINT(20) NOT NULL DEFAULT '0',
