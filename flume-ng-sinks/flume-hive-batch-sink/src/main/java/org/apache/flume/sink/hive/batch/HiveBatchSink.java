@@ -440,12 +440,14 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
     new Thread(this.idleWriterRemoveThread, "IdleWriterCleanThread").start();
     sinkCounter.start();
     if (this.zookeeperConnect != null) {
-      this.zkService = new ZKService(this.zookeeperConnect, this.zookeeperServiceName, this.hostName, this.zookeeperSessionTimeout);
       try {
-        this.zkService.start();
-      } catch (ZKServiceException e) {
+        startZKService();
+      } catch (Exception e) {
         LOG.error("Fail to start ZKService", e);
+        stop();
+        return;
       }
+
       if (this.dbConnectURL != null) {
         // To Update DTE LogDetail
         this.leaderThread = new LeaderThread();
@@ -453,6 +455,34 @@ public class HiveBatchSink extends AbstractSink implements Configurable {
       }
     }
     super.start();
+  }
+
+  private void startZKService() throws Exception {
+    final int MAX_RETRY_NUM = 5;
+    final int SLEEP_INTERVAL = 1;
+    boolean started = false;
+
+    for (int i = 0; i < MAX_RETRY_NUM; i++) {
+      try {
+        zkService = new ZKService(zookeeperConnect, zookeeperServiceName, hostName,
+            zookeeperSessionTimeout);
+        zkService.start();
+        started = true;
+        break;
+      } catch (ZKServiceException e) {
+        LOG.error("Fail to start ZKService", e);
+      }
+
+      try {
+        TimeUnit.SECONDS.sleep(SLEEP_INTERVAL);
+      } catch (InterruptedException e) {
+        LOG.warn("interrupted", e);
+      }
+    }
+
+    if (!started) {
+      throw new Exception("Fail to start ZKService after " + MAX_RETRY_NUM + " times");
+    }
   }
 
   @Override
