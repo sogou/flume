@@ -12,12 +12,15 @@ import java.nio.charset.UnsupportedCharsetException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Created by Tao Li on 5/17/16.
  */
 public class POSTBodyHandler implements HTTPSourceHandler {
   private static final Logger LOG = LoggerFactory.getLogger(POSTBodyHandler.class);
+
+  private List<String> headerKeys = new ArrayList<String>();
 
   public List<Event> getEvents(HttpServletRequest request) throws Exception {
     if (!"POST".equalsIgnoreCase(request.getMethod())) {
@@ -41,7 +44,11 @@ public class POSTBodyHandler implements HTTPSourceHandler {
 
     List<Event> eventList = new ArrayList<Event>();
     String body = CharStreams.toString(request.getReader());
-    Event event = EventBuilder.withBody(body.getBytes(charset), new HashMap<String, String>());
+    Map<String, String> headers = new HashMap<String, String>();
+    for (String key : headerKeys) {
+      headers.put(key, request.getHeader(key));
+    }
+    Event event = EventBuilder.withBody(body.getBytes(charset), headers);
     eventList.add(event);
 
     return eventList;
@@ -49,6 +56,10 @@ public class POSTBodyHandler implements HTTPSourceHandler {
   }
 
   public void configure(Context context) {
-
+    if (context.containsKey("headerKeys")) {
+      for (String key : context.getString("headerKeys").split(",")) {
+        headerKeys.add(key);
+      }
+    }
   }
 }
