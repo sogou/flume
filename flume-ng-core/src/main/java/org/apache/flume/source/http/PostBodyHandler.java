@@ -46,7 +46,11 @@ public class POSTBodyHandler implements HTTPSourceHandler {
     String body = CharStreams.toString(request.getReader());
     Map<String, String> headers = new HashMap<String, String>();
     for (String key : headerKeys) {
-      headers.put(key, request.getHeader(key));
+      String value = request.getHeader(key);
+      if (value == null) {
+        value = "";
+      }
+      headers.put(key, value);
     }
     Event event = EventBuilder.withBody(body.getBytes(charset), headers);
     eventList.add(event);
